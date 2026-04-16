@@ -221,17 +221,49 @@ jobs:
       - name: Make scripts executable
         run: chmod +x scripts/*.sh scripts/lib/*.sh
 
-      - name: Download preview artifacts
+      - name: Download fab artifacts
         uses: actions/download-artifact@v4
         with:
-          name: preview-${{ github.sha }}
-          path: site/preview/
+          name: fab-${{ github.sha }}
+          path: site/fab/
 
       - name: Download docs artifacts
         uses: actions/download-artifact@v4
         with:
           name: docs-${{ github.sha }}
           path: site/docs/
+
+      - name: Download preview artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: preview-${{ github.sha }}
+          path: site/preview/
+
+      - name: Download assembly artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: assembly-${{ github.sha }}
+          path: site/assembly/
+
+      - name: Download 3D artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: 3d-${{ github.sha }}
+          path: site/3d/
+
+      - name: Download ERC report
+        uses: actions/download-artifact@v4
+        if: always()
+        with:
+          name: erc-report
+          path: site/reports/erc/
+
+      - name: Download DRC report
+        uses: actions/download-artifact@v4
+        if: always()
+        with:
+          name: drc-report
+          path: site/reports/drc/
 
       - name: Generate Pages site
         env:
