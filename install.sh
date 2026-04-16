@@ -35,6 +35,7 @@ FILES=(
   "scripts/erc.sh"
   "scripts/drc.sh"
   "scripts/export.sh"
+  "scripts/gen-pages.sh"
   "scripts/lib/common.sh"
 )
 
