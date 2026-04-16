@@ -23,9 +23,10 @@ mkdir -p "$ERC_DIR"
 info "ERC on: $SCH"
 
 "$KICAD_CLI" sch erc \
-  --output    "$ERC_DIR/erc-report.txt" \
-  --format    text \
-  --severity-all \
+  --output             "$ERC_DIR/erc-report.json" \
+  --format             json \
+  --severity-error \
+  --severity-warning \
   --exit-code-violations \
   "$SCH"
 

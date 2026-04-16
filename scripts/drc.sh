@@ -24,8 +24,8 @@ mkdir -p "$DRC_DIR"
 info "DRC on: $PCB"
 
 "$KICAD_CLI" pcb drc \
-  --output    "$DRC_DIR/drc-report.txt" \
-  --format    text \
+  --output               "$DRC_DIR/drc-report.json" \
+  --format               json \
   --schematic-parity \
   --exit-code-violations \
   "$PCB"
