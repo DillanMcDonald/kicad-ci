@@ -1,0 +1,151 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Dillan McDonald
+#
+# KiCad CI/CD Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+# Jobs:
+#   erc    → Electrical Rules Check     (must pass; blocks drc)
+#   drc    → Design Rules Check         (must pass; blocks export)
+#   export → Gerbers, drill, PDF, BOM, 3D render  (artifacts uploaded)
+#   release→ GitHub Release with fab files (tags matching v* only)
+#
+# Container: ghcr.io/kicad/kicad:9.0  (official KiCad image, GPL-3.0)
+#   Running a GPL binary in CI does NOT affect the license of these scripts.
+#
+# All workflow scripts (scripts/*.sh) are MIT-licensed.
+
+name: KiCad CI
+
+on:
+  push:
+    branches: ["**"]
+    tags:     ["v*"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+env:
+  KICAD_IMAGE: ghcr.io/kicad/kicad:9.0
+
+# ── ERC ───────────────────────────────────────────────────────────────────────
+jobs:
+  erc:
+    name: "ERC — Electrical Rules Check"
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/kicad/kicad:9.0
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/lib/*.sh
+
+      - name: Run ERC
+        run: scripts/erc.sh
+
+      - name: Upload ERC report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: erc-report
+          path: output/erc/
+          if-no-files-found: warn
+
+# ── DRC ───────────────────────────────────────────────────────────────────────
+  drc:
+    name: "DRC — Design Rules Check"
+    runs-on: ubuntu-latest
+    needs: erc
+    container:
+      image: ghcr.io/kicad/kicad:9.0
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/lib/*.sh
+
+      - name: Run DRC
+        run: scripts/drc.sh
+
+      - name: Upload DRC report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drc-report
+          path: output/drc/
+          if-no-files-found: warn
+
+# ── Export ────────────────────────────────────────────────────────────────────
+  export:
+    name: "Export — Gerbers, PDF, BOM, 3D Render"
+    runs-on: ubuntu-latest
+    needs: [erc, drc]
+    container:
+      image: ghcr.io/kicad/kicad:9.0
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/lib/*.sh
+
+      - name: Export all artifacts
+        run: scripts/export.sh
+
+      - name: Upload fabrication artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabrication-${{ github.sha }}
+          path: |
+            output/*-fab.zip
+            output/schematic.pdf
+            output/bom.csv
+            output/render-top.png
+            output/render-bottom.png
+          if-no-files-found: warn
+
+      - name: Upload ERC + DRC reports (for traceability)
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ github.sha }}
+          path: |
+            output/erc/
+            output/drc/
+          if-no-files-found: warn
+
+# ── Release ───────────────────────────────────────────────────────────────────
+  release:
+    name: "Release — Publish fab files on tag"
+    runs-on: ubuntu-latest
+    needs: export
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download fabrication artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: fabrication-${{ github.sha }}
+          path: release-assets/
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "$TAG" \
+            --title "Release $TAG" \
+            --generate-notes \
+            release-assets/*

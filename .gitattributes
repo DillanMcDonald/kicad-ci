@@ -1,0 +1,7 @@
+# Force LF line endings for shell scripts (run in Linux containers)
+scripts/**   text eol=lf
+*.sh         text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.md         text eol=lf
+LICENSE      text eol=lf
