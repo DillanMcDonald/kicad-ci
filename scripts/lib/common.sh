@@ -14,16 +14,22 @@ PROJECT_DIR="${PROJECT_DIR:-.}"
 # ── file discovery ────────────────────────────────────────────────────────────
 
 _find_sch() {
-  find "$PROJECT_DIR" -maxdepth 4 \
+  # maxdepth 2: files should be at root of PROJECT_DIR or one subdir deep.
+  # Excludes rescue schematics, ignore/ directories, and git internals.
+  find "$PROJECT_DIR" -maxdepth 2 \
     -name "*.kicad_sch" \
     ! -name "*-rescue.kicad_sch" \
+    ! -path "*/ignore/*" \
+    ! -path "*/backups/*" \
     ! -path "*/.git/*" \
     | sort | head -1
 }
 
 _find_pcb() {
-  find "$PROJECT_DIR" -maxdepth 4 \
+  find "$PROJECT_DIR" -maxdepth 2 \
     -name "*.kicad_pcb" \
+    ! -path "*/ignore/*" \
+    ! -path "*/backups/*" \
     ! -path "*/.git/*" \
     | sort | head -1
 }
