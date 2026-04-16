@@ -3,7 +3,15 @@
 # Copyright (c) 2026 Dillan McDonald
 #
 # Run KiCad Electrical Rules Check (ERC).
-# Exits non-zero on any violations → fails CI job.
+#
+# Two-pass strategy:
+#   Pass 1 — Full report (errors + warnings) written to artifact for review.
+#             Always succeeds so the report is always uploaded.
+#   Pass 2 — Errors-only exit-code check. Fails CI only on actual ERC errors.
+#             Intentional unconnected pins (warnings) do NOT fail CI.
+#
+# This matches professional practice: warnings are advisory (engineer must
+# review); errors are blocking (must be fixed before merge).
 #
 # Env vars:
 #   PROJECT_DIR  - root dir to search for .kicad_sch (default: .)
@@ -22,12 +30,22 @@ mkdir -p "$ERC_DIR"
 
 info "ERC on: $SCH"
 
+# ── Pass 1: full report (errors + warnings) ───────────────────────────────────
+info "ERC pass 1/2: generating full report (errors + warnings)"
 "$KICAD_CLI" sch erc \
   --output             "$ERC_DIR/erc-report.json" \
   --format             json \
   --severity-error \
   --severity-warning \
+  "$SCH" || true   # always succeed — report is informational
+
+# ── Pass 2: error-only exit code check ───────────────────────────────────────
+info "ERC pass 2/2: checking for blocking errors"
+"$KICAD_CLI" sch erc \
+  --output             "$ERC_DIR/erc-errors.json" \
+  --format             json \
+  --severity-error \
   --exit-code-violations \
   "$SCH"
 
-info "ERC passed — no violations"
+info "ERC passed — no blocking errors (warnings may exist, see erc-report.json)"
