@@ -26,6 +26,14 @@ on:
 
 env:
   KICAD_IMAGE: ghcr.io/kicad/kicad:9.0
+  # Point at the test project bundled in this repo.
+  # When copying this workflow to your own project, remove this line
+  # (scripts auto-discover *.kicad_sch/pcb from repo root) or set to
+  # your subdirectory, e.g.: PROJECT_DIR: hardware/my-board
+  PROJECT_DIR: test-project
+  # GitHub Actions runners have no GPU — skip raytraced 3D render.
+  # Remove or set to 0 if running on a self-hosted runner with GPU.
+  SKIP_RENDER: "1"
 
 # ── ERC ───────────────────────────────────────────────────────────────────────
 jobs:
