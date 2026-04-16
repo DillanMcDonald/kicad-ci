@@ -185,7 +185,15 @@ ${KIPRJMOD}/MyLib/MyLib.kicad_sym
 | `actions/upload-artifact@v4` | MIT | Artifact storage |
 | `actions/download-artifact@v4` | MIT | Artifact retrieval |
 | `gh` CLI | MIT | Release creation |
+| `actions/upload-pages-artifact@v3` | MIT | Pages deployment |
+| `actions/deploy-pages@v4` | MIT | Pages deployment |
 | All `scripts/*.sh` (this repo) | **MIT** | All pipeline logic |
+
+### Acknowledgements
+
+The HTML navigation site (`gen-pages.sh`) is inspired by the output format of
+[KDT_Hierarchical_KiBot](https://github.com/nguyen-v/KDT_Hierarchical_KiBot) (MIT).
+This implementation is original — no code from KiBot (AGPL-3.0) is used.
 
 Not used (license incompatible with MIT-only constraint):
 - KiBot — AGPL-3.0
