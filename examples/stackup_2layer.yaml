@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: MIT
+# Standard 2-layer FR4 stackup — 1.6 mm total
+#
+# Usage:
+#   python scripts/draw_stackup.py \
+#       --config examples/stackup_2layer.yaml \
+#       --board  design.kicad_pcb \
+#       --layer  User.1 \
+#       --x 120 --y 10
+
+title: "PCB STACKUP CROSS-SECTION (2-Layer)"
+disclaimer: "Z0 +-5% (IPC-2141A) -- verify with field solver"
+
+total_display_height_mm: 40.0
+cross_section_width_mm: 30.0
+line_width_mm: 0.1
+font_size_mm: 1.5
+font_thickness_mm: 0.15
+
+layers:
+  # ── Top copper ─────────────────────────────────────────────────────────────
+  - name: F.Cu
+    type: copper
+    material: "1oz Cu"
+    thickness_mm: 0.035
+    trace_width_mm: 0.30      # ~50 ohm microstrip on 1.53 mm FR4 core (Er=4.5)
+    trace_type: microstrip
+
+  # ── Core ───────────────────────────────────────────────────────────────────
+  - name: Core
+    type: dielectric
+    material: "FR4 Core"
+    thickness_mm: 1.530
+    dielectric_constant: 4.50
+    loss_tangent: 0.02
+
+  # ── Bottom copper ──────────────────────────────────────────────────────────
+  - name: B.Cu
+    type: copper
+    material: "1oz Cu"
+    thickness_mm: 0.035
+    trace_width_mm: 0.30
+    trace_type: microstrip

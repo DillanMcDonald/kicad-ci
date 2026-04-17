@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: MIT
+# Standard 4-layer FR4 stackup — 1.6 mm total (JLC/PCBWay common stack)
+#
+# Usage:
+#   python scripts/draw_stackup.py \
+#       --config examples/stackup_4layer.yaml \
+#       --board  design.kicad_pcb \
+#       --layer  User.1 \
+#       --x 120 --y 10
+
+title: "PCB STACKUP CROSS-SECTION (4-Layer)"
+disclaimer: "Z0 +-5% (IPC-2141A) -- verify with field solver for high-speed signals"
+
+total_display_height_mm: 62.0
+cross_section_width_mm: 30.0
+line_width_mm: 0.1
+font_size_mm: 1.5
+font_thickness_mm: 0.15
+
+layers:
+  # ── Top copper ─────────────────────────────────────────────────────────────
+  - name: F.Cu
+    type: copper
+    material: "1oz Cu"
+    thickness_mm: 0.035
+    trace_width_mm: 0.15      # 0.15 mm trace → microstrip ~73 ohm on prepreg below
+    trace_type: microstrip
+
+  # ── Prepreg (top) ──────────────────────────────────────────────────────────
+  - name: Prepreg
+    type: dielectric
+    material: "FR4 7628 RC46%"
+    thickness_mm: 0.196
+    dielectric_constant: 4.74
+    loss_tangent: 0.02
+
+  # ── Inner layer 1 (GND plane) ──────────────────────────────────────────────
+  - name: In1.Cu
+    type: copper
+    material: "1oz Cu"
+    thickness_mm: 0.035
+    # GND plane — no trace impedance target
+
+  # ── Core ───────────────────────────────────────────────────────────────────
+  - name: Core
+    type: dielectric
+    material: "FR4 Core"
+    thickness_mm: 1.065
+    dielectric_constant: 4.60
+    loss_tangent: 0.02
+
+  # ── Inner layer 2 (PWR plane) ──────────────────────────────────────────────
+  - name: In2.Cu
+    type: copper
+    material: "1oz Cu"
+    thickness_mm: 0.035
+    # PWR plane — no trace impedance target
+
+  # ── Prepreg (bottom) ───────────────────────────────────────────────────────
+  - name: Prepreg
+    type: dielectric
+    material: "FR4 7628 RC46%"
+    thickness_mm: 0.196
+    dielectric_constant: 4.74
+    loss_tangent: 0.02
+
+  # ── Bottom copper ──────────────────────────────────────────────────────────
+  - name: B.Cu
+    type: copper
+    material: "1oz Cu"
+    thickness_mm: 0.035
+    trace_width_mm: 0.15      # microstrip on prepreg above
+    trace_type: microstrip

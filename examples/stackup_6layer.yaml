@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: MIT
+# Standard 6-layer FR4 stackup — 1.6 mm total
+#
+# Typical role assignment:
+#   F.Cu  = signal / controlled-impedance
+#   In1   = GND reference
+#   In2   = signal
+#   In3   = PWR
+#   In4   = GND reference
+#   B.Cu  = signal / controlled-impedance
+#
+# Usage:
+#   python scripts/draw_stackup.py \
+#       --config examples/stackup_6layer.yaml \
+#       --board  design.kicad_pcb \
+#       --layer  User.1 \
+#       --x 120 --y 10
+
+title: "PCB STACKUP CROSS-SECTION (6-Layer)"
+disclaimer: "Z0 +-5% (IPC-2141A) -- verify with field solver for high-speed signals"
+
+total_display_height_mm: 80.0
+cross_section_width_mm: 30.0
+line_width_mm: 0.1
+font_size_mm: 1.5
+font_thickness_mm: 0.15
+
+layers:
+  - name: F.Cu
+    type: copper
+    material: "1oz Cu"
+    thickness_mm: 0.035
+    trace_width_mm: 0.13
+    trace_type: microstrip
+
+  - name: Prepreg
+    type: dielectric
+    material: "FR4 2116"
+    thickness_mm: 0.117
+    dielectric_constant: 4.55
+    loss_tangent: 0.02
+
+  - name: In1.Cu
+    type: copper
+    material: "0.5oz Cu"
+    thickness_mm: 0.0175
+
+  - name: Core
+    type: dielectric
+    material: "FR4 Core"
+    thickness_mm: 0.360
+    dielectric_constant: 4.60
+    loss_tangent: 0.02
+
+  - name: In2.Cu
+    type: copper
+    material: "0.5oz Cu"
+    thickness_mm: 0.0175
+    trace_width_mm: 0.10
+    trace_type: stripline
+
+  - name: Prepreg
+    type: dielectric
+    material: "FR4 3313"
+    thickness_mm: 0.091
+    dielectric_constant: 4.50
+    loss_tangent: 0.02
+
+  - name: In3.Cu
+    type: copper
+    material: "0.5oz Cu"
+    thickness_mm: 0.0175
+
+  - name: Prepreg
+    type: dielectric
+    material: "FR4 3313"
+    thickness_mm: 0.091
+    dielectric_constant: 4.50
+    loss_tangent: 0.02
+
+  - name: In4.Cu
+    type: copper
+    material: "0.5oz Cu"
+    thickness_mm: 0.0175
+    trace_width_mm: 0.10
+    trace_type: stripline
+
+  - name: Core
+    type: dielectric
+    material: "FR4 Core"
+    thickness_mm: 0.360
+    dielectric_constant: 4.60
+    loss_tangent: 0.02
+
+  - name: In5.Cu
+    type: copper
+    material: "0.5oz Cu"
+    thickness_mm: 0.0175
+
+  - name: Prepreg
+    type: dielectric
+    material: "FR4 2116"
+    thickness_mm: 0.117
+    dielectric_constant: 4.55
+    loss_tangent: 0.02
+
+  - name: B.Cu
+    type: copper
+    material: "1oz Cu"
+    thickness_mm: 0.035
+    trace_width_mm: 0.13
+    trace_type: microstrip
