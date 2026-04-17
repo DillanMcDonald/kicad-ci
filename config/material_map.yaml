@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: MIT
+# PBR material map for KiCad PCB Blender renders.
+#
+# After VRML import, Blender objects are matched to entries here by their
+# dominant vertex/diffuse colour. Colours are specified in sRGB (0-1 range);
+# blender_render.py converts them to linear space before comparison.
+#
+# Each entry:
+#   color     : [r, g, b] sRGB reference colour for matching
+#   tolerance : Euclidean distance threshold in linear RGB space (0–√3)
+#   bsdf      : Principled BSDF parameters (linear colour space)
+#     base_color   : [r, g, b] linear
+#     metallic     : 0.0 (dielectric) – 1.0 (metal)
+#     roughness    : 0.0 (mirror) – 1.0 (fully rough)
+#     ior          : (optional) index of refraction
+#     transmission : (optional) 0.0–1.0 for glass-like materials
+
+solder_mask_green:
+  color: [0.04, 0.36, 0.04]
+  tolerance: 0.18
+  bsdf:
+    base_color: [0.007, 0.098, 0.007]
+    metallic: 0.0
+    roughness: 0.35
+
+solder_mask_blue:
+  color: [0.04, 0.04, 0.36]
+  tolerance: 0.18
+  bsdf:
+    base_color: [0.007, 0.007, 0.098]
+    metallic: 0.0
+    roughness: 0.35
+
+solder_mask_red:
+  color: [0.36, 0.04, 0.04]
+  tolerance: 0.18
+  bsdf:
+    base_color: [0.098, 0.007, 0.007]
+    metallic: 0.0
+    roughness: 0.35
+
+solder_mask_black:
+  color: [0.05, 0.05, 0.05]
+  tolerance: 0.12
+  bsdf:
+    base_color: [0.003, 0.003, 0.003]
+    metallic: 0.0
+    roughness: 0.40
+
+solder_mask_white:
+  color: [0.85, 0.85, 0.85]
+  tolerance: 0.12
+  bsdf:
+    base_color: [0.70, 0.70, 0.70]
+    metallic: 0.0
+    roughness: 0.45
+
+copper_gold:
+  color: [0.83, 0.69, 0.21]
+  tolerance: 0.15
+  bsdf:
+    base_color: [0.665, 0.456, 0.036]
+    metallic: 1.0
+    roughness: 0.15
+
+copper_silver:
+  color: [0.80, 0.80, 0.80]
+  tolerance: 0.10
+  bsdf:
+    base_color: [0.614, 0.614, 0.614]
+    metallic: 1.0
+    roughness: 0.10
+
+silkscreen_white:
+  color: [0.90, 0.90, 0.90]
+  tolerance: 0.08
+  bsdf:
+    base_color: [0.78, 0.78, 0.78]
+    metallic: 0.0
+    roughness: 0.65
+
+silkscreen_black:
+  color: [0.02, 0.02, 0.02]
+  tolerance: 0.06
+  bsdf:
+    base_color: [0.002, 0.002, 0.002]
+    metallic: 0.0
+    roughness: 0.70
+
+pcb_substrate_fr4:
+  color: [0.78, 0.72, 0.55]
+  tolerance: 0.20
+  bsdf:
+    base_color: [0.573, 0.492, 0.278]
+    metallic: 0.0
+    roughness: 0.70
+
+solder_tin:
+  color: [0.60, 0.60, 0.65]
+  tolerance: 0.12
+  bsdf:
+    base_color: [0.330, 0.330, 0.385]
+    metallic: 0.7
+    roughness: 0.45

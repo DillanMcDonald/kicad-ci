@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: MIT
+# Camera presets for Blender PCB renders.
+#
+# Coordinates are spherical, relative to the board centre (origin after import).
+#   elevation_deg   : angle above horizontal plane (0=horizon, 90=straight down)
+#   azimuth_deg     : angle around vertical axis, 0=+X, CCW looking down
+#   distance_factor : camera distance = factor × (max(board_x, board_y) / 2)
+#   focal_length_mm : camera lens focal length
+#   sensor_size_mm  : sensor width (default 36 = full-frame)
+
+presets:
+  - name: iso-left
+    elevation_deg: 45.0
+    azimuth_deg: 315.0
+    distance_factor: 2.5
+    focal_length_mm: 50.0
+    sensor_size_mm: 36.0
+
+  - name: iso-right
+    elevation_deg: 45.0
+    azimuth_deg: 225.0
+    distance_factor: 2.5
+    focal_length_mm: 50.0
+    sensor_size_mm: 36.0
+
+  - name: top
+    elevation_deg: 89.0
+    azimuth_deg: 0.0
+    distance_factor: 3.0
+    focal_length_mm: 90.0
+    sensor_size_mm: 36.0
+
+  - name: front-angled
+    elevation_deg: 25.0
+    azimuth_deg: 270.0
+    distance_factor: 2.5
+    focal_length_mm: 70.0
+    sensor_size_mm: 36.0
