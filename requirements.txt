@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT
+# Runtime dependencies for kicad-ci Python scripts.
+#
+# All packages MIT or BSD licensed — safe to import directly.
+# GPL/LGPL tools (kicad-cli, Inkscape, cairosvg) invoked via subprocess only.
+
+# --- Feature 2: per-layer fabrication PDF ---
+reportlab>=4.0,<5.0     # BSD — PDF canvas, Table, TableStyle
+pypdf>=4.0,<5.0         # MIT — PDF merge, bookmarks
+
+# --- Optional: Excellon SVG rendering (Feature 2 F2-T4 enhancement) ---
+# Pin to 2.x; 3.x has breaking API changes.
+# pygerber>=2.3,<3.0    # MIT — Excellon parse/render (uncomment to enable)
