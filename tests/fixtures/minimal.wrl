@@ -1,0 +1,89 @@
+#VRML V2.0 utf8
+# Minimal mock VRML fixture for blender_render.py tests.
+# Represents a 20mm × 10mm × 1.6mm PCB substrate + one copper pad + silkscreen.
+# Generated manually — not from kicad-cli — so tests run without KiCad installed.
+
+WorldInfo {
+  title "KiCad PCB Test Fixture"
+  info ["minimal.wrl — CC0 test fixture"]
+}
+
+# PCB substrate (green FR4)
+Transform {
+  translation 0 0 0
+  children [
+    Shape {
+      appearance Appearance {
+        material Material {
+          diffuseColor 0.04 0.36 0.04
+          specularColor 0.1 0.1 0.1
+          shininess 0.1
+          transparency 0.0
+        }
+      }
+      geometry Box {
+        size 20 10 1.6
+      }
+    }
+  ]
+}
+
+# Copper pad (gold)
+Transform {
+  translation 5 2 0.85
+  children [
+    Shape {
+      appearance Appearance {
+        material Material {
+          diffuseColor 0.83 0.69 0.21
+          specularColor 0.9 0.9 0.9
+          shininess 0.8
+          transparency 0.0
+        }
+      }
+      geometry Box {
+        size 2 1.5 0.035
+      }
+    }
+  ]
+}
+
+# Silkscreen text block (white)
+Transform {
+  translation -3 4 0.82
+  children [
+    Shape {
+      appearance Appearance {
+        material Material {
+          diffuseColor 0.90 0.90 0.90
+          specularColor 0.1 0.1 0.1
+          shininess 0.05
+          transparency 0.0
+        }
+      }
+      geometry Box {
+        size 6 1 0.01
+      }
+    }
+  ]
+}
+
+# SMD resistor body (dark grey)
+Transform {
+  translation -5 -2 1.2
+  children [
+    Shape {
+      appearance Appearance {
+        material Material {
+          diffuseColor 0.15 0.15 0.15
+          specularColor 0.05 0.05 0.05
+          shininess 0.05
+          transparency 0.0
+        }
+      }
+      geometry Box {
+        size 1.6 0.8 0.4
+      }
+    }
+  ]
+}
