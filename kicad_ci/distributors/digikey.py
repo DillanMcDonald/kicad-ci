@@ -10,7 +10,7 @@ Required env vars:
     DIGIKEY_CLIENT_ID      — OAuth2 client_id (also used as X-IBMCLOUD-KEY)
     DIGIKEY_CLIENT_SECRET  — OAuth2 client_secret
 
-Sandbox (no quota): set DIGIKEY_SANDBOX=1 to use sandbox-api.digikey.com.
+Sandbox (no quota): set DIGIKEY_SANDBOX=1 to use api.digikey.com/sandbox prefix.
 
 CRITICAL: Both headers are required for every request:
     Authorization: Bearer <token>
@@ -36,10 +36,11 @@ from kicad_ci.distributors.base import (
 
 _TOKEN_URL = "https://api.digikey.com/v1/oauth2/token"
 _SEARCH_URL = "https://api.digikey.com/products/v4/search/{mpn}/productdetails"
+_SANDBOX_TOKEN_URL = "https://api.digikey.com/v1/oauth2/token"
 _SANDBOX_SEARCH_URL = "https://sandbox-api.digikey.com/products/v4/search/{mpn}/productdetails"
 
 _MAX_RETRIES = 3
-_TOKEN_BUFFER_SECS = 60
+_TOKEN_BUFFER_SECS = 60  # refresh token this many seconds early
 
 
 @register_distributor("digikey")
@@ -47,8 +48,8 @@ class DigiKeyClient(DistributorClient):
     """
     DigiKey Product Search API v4 client.
 
-    Token cached in-process, refreshed automatically before expiry.
-    Product responses cached via ApiCache.
+    Token is cached in-process and refreshed automatically before expiry.
+    Product responses are cached in SQLite via :class:`~kicad_ci.api_cache.ApiCache`.
     """
 
     display_name = "DigiKey"
@@ -60,6 +61,8 @@ class DigiKeyClient(DistributorClient):
         self._sandbox = bool(os.environ.get("DIGIKEY_SANDBOX"))
         self._cache = ApiCache()
         self._session = requests.Session()
+
+        # In-process token cache
         self._token: Optional[str] = None
         self._token_expires_at: float = 0.0
 
@@ -68,13 +71,17 @@ class DigiKeyClient(DistributorClient):
     # ------------------------------------------------------------------
 
     def _get_token(self) -> Optional[str]:
+        """Return a valid Bearer token, refreshing if near expiry."""
         if self._token and time.time() < self._token_expires_at:
             return self._token
+
         if not (self._client_id and self._client_secret):
             return None
+
+        token_url = _SANDBOX_TOKEN_URL if self._sandbox else _TOKEN_URL
         try:
             resp = self._session.post(
-                _TOKEN_URL,
+                token_url,
                 data={
                     "client_id": self._client_id,
                     "client_secret": self._client_secret,
@@ -85,6 +92,7 @@ class DigiKeyClient(DistributorClient):
             resp.raise_for_status()
         except requests.RequestException:
             return None
+
         data = resp.json()
         self._token = data.get("access_token")
         expires_in = int(data.get("expires_in", 1800))
@@ -124,6 +132,7 @@ class DigiKeyClient(DistributorClient):
                     timeout=15,
                 )
                 if resp.status_code == 401:
+                    # Token may have expired mid-request — clear and retry once
                     self._token = None
                     token = self._get_token()
                     if not token:
@@ -157,8 +166,10 @@ class DigiKeyClient(DistributorClient):
 # ---------------------------------------------------------------------------
 
 def _parse_result(raw: dict, mpn: str) -> Optional[PriceResult]:
+    """Parse a DigiKey v4 productdetails response into a PriceResult."""
     product = raw.get("Product") or {}
     if not product:
+        # Bulk response wraps in Products list
         products = raw.get("Products") or []
         if not products:
             return None
@@ -181,12 +192,14 @@ def _parse_result(raw: dict, mpn: str) -> Optional[PriceResult]:
     if isinstance(mfr, dict):
         manufacturer = mfr.get("Name", "")
 
+    # Datasheet
     datasheet_url = ""
     for media in product.get("MediaLinks", []) or []:
         if isinstance(media, dict) and media.get("MediaType", "").lower() == "datasheets":
             datasheet_url = media.get("Url", "")
             break
 
+    # Price breaks
     breaks: list[PriceBreak] = []
     currency = "USD"
     for tier in product.get("StandardPricing", []) or []:

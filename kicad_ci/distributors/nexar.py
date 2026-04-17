@@ -3,14 +3,14 @@
 """
 Nexar (Octopart) GraphQL API client (F6-T5).
 
-Single query returns pricing from Mouser, DigiKey, Arrow, LCSC etc.,
+Single query returns pricing from Mouser, DigiKey, Arrow, LCSC and others —
 reducing API calls versus hitting each distributor independently.
 
 OAuth2 token: POST https://identity.nexar.com/connect/token
 GraphQL:      POST https://api.nexar.com/graphql
 
-CRITICAL: Free tier = 1000 queries/month (Jan 2026).
-          Cache TTL is 168 hours (7 days) to conserve quota.
+CRITICAL: Free tier = 1000 queries/month (as of Jan 2026).
+          Cache aggressively — default TTL is 168 hours (7 days).
 
 Required env vars:
     NEXAR_CLIENT_ID
@@ -37,7 +37,8 @@ from kicad_ci.distributors.base import (
 _TOKEN_URL = "https://identity.nexar.com/connect/token"
 _GQL_URL = "https://api.nexar.com/graphql"
 
-_CACHE_TTL_HOURS = 168.0  # 7 days
+# 7-day TTL — Nexar free tier is quota-constrained, cache hard.
+_CACHE_TTL_HOURS = 168.0
 _TOKEN_BUFFER_SECS = 60
 _MAX_RETRIES = 3
 
@@ -73,8 +74,9 @@ class NexarClient(DistributorClient):
     """
     Nexar GraphQL API client.
 
-    :meth:`search_by_mpn_multi` returns all distributor results.
-    :meth:`search_by_mpn` returns the best (lowest unit price at qty=1).
+    Returns a dict of distributor-name → PriceResult by calling
+    :meth:`search_by_mpn_multi`.  The :meth:`search_by_mpn` method returns
+    the best (lowest unit price at qty=1) result across all distributors.
     """
 
     display_name = "Nexar (Octopart)"
@@ -85,6 +87,7 @@ class NexarClient(DistributorClient):
         self._client_secret: Optional[str] = os.environ.get("NEXAR_CLIENT_SECRET")
         self._cache = ApiCache()
         self._session = requests.Session()
+
         self._token: Optional[str] = None
         self._token_expires_at: float = 0.0
 
@@ -95,8 +98,10 @@ class NexarClient(DistributorClient):
     def _get_token(self) -> Optional[str]:
         if self._token and time.time() < self._token_expires_at:
             return self._token
+
         if not (self._client_id and self._client_secret):
             return None
+
         try:
             resp = self._session.post(
                 _TOKEN_URL,
@@ -110,6 +115,7 @@ class NexarClient(DistributorClient):
             resp.raise_for_status()
         except requests.RequestException:
             return None
+
         data = resp.json()
         self._token = data.get("access_token")
         expires_in = int(data.get("expires_in", 3600))
@@ -121,9 +127,11 @@ class NexarClient(DistributorClient):
     # ------------------------------------------------------------------
 
     def _query(self, mpn: str) -> Optional[dict]:
+        """Execute GraphQL search and return raw JSON, with retry."""
         token = self._get_token()
         if not token:
             return None
+
         for attempt in range(_MAX_RETRIES):
             try:
                 resp = self._session.post(
@@ -157,10 +165,13 @@ class NexarClient(DistributorClient):
     # ------------------------------------------------------------------
 
     def search_by_mpn(self, mpn: str) -> Optional[PriceResult]:
-        """Return lowest-unit-price result across all distributors, or None."""
+        """
+        Return lowest-unit-price result across all distributors, or ``None``.
+        """
         results = self.search_by_mpn_multi(mpn)
         if not results:
             return None
+        # Pick best (lowest unit price at qty=1) across distributors
         best: Optional[PriceResult] = None
         best_price: Optional[Decimal] = None
         for result in results.values():
@@ -208,6 +219,7 @@ def _parse_multi(raw: dict, mpn: str) -> Dict[str, PriceResult]:
     if not hits:
         return results
 
+    # Use the first hit (best MPN match from Nexar's ranking)
     hit = hits[0]
     part = hit.get("part") or {}
     mfr_name = (part.get("manufacturer") or {}).get("name", "")

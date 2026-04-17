@@ -24,6 +24,7 @@ Registry pattern
 from __future__ import annotations
 
 import abc
+import sys
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Dict, List, Optional
@@ -66,7 +67,7 @@ class PriceResult:
         """
         Return best unit price for *qty* using binary search over price breaks.
 
-        Returns ``None`` if no breaks are defined or qty is below first break.
+        Returns ``None`` if no breaks are defined or qty < moq.
         """
         if not self.price_breaks:
             return None
@@ -171,7 +172,7 @@ class DistributorClient(abc.ABC):
     so they are automatically available via :func:`get_client`.
     """
 
-    #: Human-readable name shown in XLSX output
+    #: Human-readable name shown in XLSX output, e.g. "Mouser Electronics"
     display_name: str = ""
 
     #: Cache TTL in hours for this distributor's responses
@@ -183,8 +184,13 @@ class DistributorClient(abc.ABC):
         Query the distributor for *mpn*.
 
         Returns a :class:`PriceResult` on success, ``None`` if not found or
-        on non-fatal errors.  Implementations MUST use ``decimal.Decimal``
-        for all price values and cache responses via ApiCache.
+        on non-fatal errors (quota exceeded, part not stocked, etc.).
+
+        Implementations MUST:
+        - Respect rate limits via exponential backoff.
+        - Cache responses using :class:`~kicad_ci.api_cache.ApiCache`.
+        - Return ``None`` rather than raising on API errors.
+        - Use :class:`decimal.Decimal` for all price values.
         """
 
     def close(self) -> None:

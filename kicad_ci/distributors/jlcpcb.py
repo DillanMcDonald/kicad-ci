@@ -10,12 +10,12 @@ Download URL: https://jlcpcb.com/componentSearch/uploadComponentInfo
 Local cache:  $JLCPCB_DB_PATH/parts.csv.gz  (default ~/.cache/kicad-pipeline/)
 SQLite index: $JLCPCB_DB_PATH/jlcpcb_parts.db
 
-CRITICAL: SQLite connections are NOT thread-safe — use threading.local() for
+CRITICAL: SQLite connections are NOT thread-safe; use threading.local() for
 per-thread connections (same pattern as ApiCache).
 
 Gotchas:
 - CSV column layout has changed historically — check headers at load time.
-- File is ~150 MB uncompressed — use streaming reader.
+- File is ~150 MB uncompressed; use streaming reader (csv.reader on gzip).
 - Auto-download if DB missing or parts.csv.gz older than 7 days.
 """
 
@@ -23,12 +23,12 @@ from __future__ import annotations
 
 import csv
 import gzip
+import io
 import logging
 import os
 import sqlite3
 import threading
 import time
-import urllib.parse
 import urllib.request
 from decimal import Decimal
 from pathlib import Path
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS jlcpcb_parts (
     manufacturer TEXT NOT NULL DEFAULT '',
     description  TEXT NOT NULL DEFAULT '',
     stock        INTEGER NOT NULL DEFAULT 0,
-    price_usd    TEXT NOT NULL DEFAULT '0',
+    price_usd    TEXT NOT NULL DEFAULT '0',   -- stored as Decimal string
     moq          INTEGER NOT NULL DEFAULT 1,
     datasheet    TEXT NOT NULL DEFAULT ''
 );
@@ -64,6 +64,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS jlcpcb_fts USING fts5(
 );
 """
 
+# Known CSV column names (checked at load time)
 _EXPECTED_COLS = {"LCSC Part", "MFR.Part", "Manufacturer", "Stock", "Price", "MOQ"}
 
 
@@ -80,7 +81,7 @@ class JLCPCBClient(DistributorClient):
     JLCPCB/LCSC parts database client.
 
     Maintains a local SQLite index built from JLCPCB's weekly CSV export.
-    Rebuilt if CSV is missing or older than 7 days.
+    The DB is rebuilt if the CSV is missing or older than 7 days.
     """
 
     display_name = "JLCPCB / LCSC"
@@ -92,10 +93,10 @@ class JLCPCBClient(DistributorClient):
         self._csv_path = self._dir / "parts.csv.gz"
         self._db_path = self._dir / "jlcpcb_parts.db"
         self._local = threading.local()
-        self._ready = False
+        self._ready = False  # set True after first successful DB init
 
     # ------------------------------------------------------------------
-    # Connection management (per-thread)
+    # Connection management (per-thread, safe for ThreadPoolExecutor)
     # ------------------------------------------------------------------
 
     def _conn(self) -> sqlite3.Connection:
@@ -113,16 +114,20 @@ class JLCPCBClient(DistributorClient):
     # ------------------------------------------------------------------
 
     def _ensure_ready(self) -> bool:
+        """Download CSV if stale, build SQLite index if needed. Returns True on success."""
         if self._ready and self._db_path.exists():
             return True
+
         if self._csv_stale():
             _log.info("JLCPCB: downloading parts CSV from %s", _DOWNLOAD_URL)
             if not self._download_csv():
                 _log.warning("JLCPCB: download failed; skipping")
                 return False
+
         if not self._db_path.exists() or self._csv_stale():
             _log.info("JLCPCB: building SQLite index…")
             self._build_index()
+
         self._ready = True
         return True
 
@@ -147,6 +152,7 @@ class JLCPCBClient(DistributorClient):
         conn = self._conn()
         conn.executescript(_SCHEMA)
 
+        # Detect column layout on first rows
         with gzip.open(self._csv_path, "rt", encoding="utf-8", errors="replace") as fh:
             reader = csv.reader(fh)
             headers = next(reader, None)
@@ -156,6 +162,7 @@ class JLCPCBClient(DistributorClient):
             col = {h.strip(): i for i, h in enumerate(headers)}
             missing = _EXPECTED_COLS - set(col.keys())
             if missing:
+                # Try alternative header names used in older CSV versions
                 col = _remap_headers(col)
                 missing = _EXPECTED_COLS - set(col.keys())
                 if missing:
@@ -176,8 +183,8 @@ class JLCPCBClient(DistributorClient):
                     stock_str = row[col["Stock"]].strip().replace(",", "")
                     price_str = row[col["Price"]].strip().lstrip("$").replace(",", "")
                     moq_str = row[col["MOQ"]].strip().replace(",", "")
-                    desc = row[col["Description"]].strip() if "Description" in col else ""
-                    ds = row[col["Datasheet"]].strip() if "Datasheet" in col else ""
+                    desc = row[col.get("Description", -1)].strip() if "Description" in col else ""
+                    ds = row[col.get("Datasheet", -1)].strip() if "Datasheet" in col else ""
                 except (IndexError, KeyError):
                     continue
 
@@ -209,6 +216,7 @@ class JLCPCBClient(DistributorClient):
                 )
                 conn.commit()
 
+            # Rebuild FTS index
             conn.execute("INSERT INTO jlcpcb_fts(jlcpcb_fts) VALUES('rebuild')")
             conn.commit()
 
@@ -222,10 +230,13 @@ class JLCPCBClient(DistributorClient):
 
         conn = self._conn()
 
+        # Try exact match first
         row = conn.execute(
-            "SELECT * FROM jlcpcb_parts WHERE mpn = ? LIMIT 1", (mpn,)
+            "SELECT * FROM jlcpcb_parts WHERE mpn = ? LIMIT 1",
+            (mpn,),
         ).fetchone()
 
+        # FTS5 approximate match fallback
         if row is None:
             try:
                 row = conn.execute(
@@ -258,7 +269,7 @@ class JLCPCBClient(DistributorClient):
             price_breaks=breaks,
             currency="USD",
             distributor="jlcpcb",
-            product_url=f"https://www.lcsc.com/search?q={urllib.parse.quote(row['lcsc_pn'])}",
+            product_url=f"https://www.lcsc.com/search?q={requests_quote(row['lcsc_pn'])}",
             datasheet_url=row["datasheet"],
         )
 
@@ -288,3 +299,9 @@ def _remap_headers(col: dict) -> dict:
         if alias in col and canonical not in col:
             out[canonical] = col[alias]
     return out
+
+
+def requests_quote(s: str) -> str:
+    """URL-encode a string without importing requests."""
+    import urllib.parse
+    return urllib.parse.quote(s, safe="")

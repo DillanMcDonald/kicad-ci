@@ -5,19 +5,16 @@ Mouser Electronics REST API v2 client (F6-T3).
 
 API docs: https://api.mouser.com/api/docs/ui/index
 Endpoint: POST https://api.mouser.com/api/v2/search/partnumber
-Auth:     header X-MOUSER-PART-SEARCH-API-KEY: <key>
+Auth:     query-param  apiKey=<MOUSER_API_KEY>
+          header       X-MOUSER-PART-SEARCH-API-KEY: <key>  (both accepted)
 
 Rate limiting: exponential backoff, 2^attempt seconds, max 3 retries on 429.
-
-Gotchas:
-- Mouser uses string "Infinity" for last qty tier — map to last_finite_qty+1
-  so binary search in price_at_qty() selects it for all large quantities.
-- Some parts return non-USD prices — check Currency field.
 """
 
 from __future__ import annotations
 
 import os
+import sys
 import time
 from decimal import Decimal
 from typing import Optional
@@ -45,8 +42,8 @@ class MouserClient(DistributorClient):
     """
     Mouser Electronics REST API v2 client.
 
-    Reads ``MOUSER_API_KEY`` from the environment.  If absent, every call
-    returns ``None`` immediately (allows import without credentials).
+    Reads ``MOUSER_API_KEY`` from the environment.  If the key is absent the
+    client is instantiated but every call returns ``None`` immediately.
     """
 
     display_name = "Mouser Electronics"
@@ -167,7 +164,7 @@ def _parse_result(raw: dict, mpn: str) -> Optional[PriceResult]:
         except (ValueError, TypeError):
             continue
 
-        # Strip currency symbols / commas
+        # Strip currency symbols / commas, handle locale decimal separator
         price_str = (
             str(price_raw)
             .replace(",", "")
@@ -175,6 +172,8 @@ def _parse_result(raw: dict, mpn: str) -> Optional[PriceResult]:
             .replace("€", "")
             .strip()
         )
+        # Some locales use comma as decimal → already stripped; European format
+        # uses period as thousands sep — covered by removing commas above.
         try:
             price = Decimal(price_str)
         except Exception:
