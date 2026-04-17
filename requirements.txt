@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+# Runtime dependencies for kicad-ci Python scripts.
+#
+# All packages MIT or Apache-licensed — no GPL/LGPL in Python import path.
+# GPL/LGPL tools (kicad-cli) invoked via subprocess only.
+
+# --- Core HTTP client ---
+requests>=2.31       # Apache 2.0 — HTTP client for distributor APIs
+
+# --- Feature 6: KiCost-style pricing XLSX ---
+openpyxl>=3.1        # MIT — XLSX generation (4-sheet BOM workbook)
+
+# --- CLI ---
+typer>=0.9           # MIT — Typer CLI for scripts/pricing_xlsx.py
+
+# --- Testing ---
+pytest>=7.0          # MIT — test framework
+# pytest-responses   # Apache 2.0 — mock HTTP responses (uncomment to enable)
