@@ -54,7 +54,7 @@ info "[2/9] Drill files (Excellon) + drill map → $DRILL_DIR"
   --drill-origin absolute \
   --excellon-units mm \
   --generate-map \
-  --map-format   gerber \
+  --map-format   gerberx2 \
   "$PCB"
 
 # Also generate a PDF drill map for documentation
