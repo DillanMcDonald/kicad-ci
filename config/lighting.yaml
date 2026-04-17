@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+# Lighting configuration for Blender PCB renders.
+#
+# HDRI:
+#   hdri_strength     : World background shader strength multiplier
+#   hdri_rotation_deg : Rotation of HDRI around Z-axis in degrees
+#
+# Three-point studio rig (energies in watts for Area/Spot lights):
+#   key_strength   : Main key light — primary illumination, defined shadows
+#   fill_strength  : Fill light    — softens shadows on opposite side
+#   rim_strength   : Rim/back light — separates board from background
+
+hdri_strength: 0.8
+hdri_rotation_deg: 45.0
+
+key_strength: 500.0
+fill_strength: 150.0
+rim_strength: 80.0
