@@ -31,7 +31,7 @@ def patch_schematic_rev(sch_path, version):
 
     # Check for title_block
     if "(title_block" not in content:
-        print("Warning: no title_block found in schematic, skipping")
+        print("Warning: no title_block found in schematic, skipping", file=sys.stderr)
         return False
 
     # Extract the title_block section and only replace (rev "...") within it.
@@ -39,13 +39,13 @@ def patch_schematic_rev(sch_path, version):
     tb_pattern = re.compile(r'(\(title_block\b.*?\))\s*\)', re.DOTALL)
     tb_match = tb_pattern.search(content)
     if not tb_match:
-        print("Warning: could not parse title_block section, skipping")
+        print("Warning: could not parse title_block section, skipping", file=sys.stderr)
         return False
 
     tb_text = tb_match.group(0)
     rev_pattern = re.compile(r'(\(rev\s+)"([^"]*)"(\))')
     if not rev_pattern.search(tb_text):
-        print("Warning: no rev field in title_block, skipping")
+        print("Warning: no rev field in title_block, skipping", file=sys.stderr)
         return False
 
     new_tb = rev_pattern.sub(rf'\g<1>"{version}"\g<3>', tb_text)
@@ -68,12 +68,12 @@ def main():
     args = parser.parse_args()
 
     if not os.path.isfile(args.changelog):
-        print(f"Warning: CHANGELOG not found: {args.changelog}")
+        print(f"Warning: CHANGELOG not found: {args.changelog}", file=sys.stderr)
         sys.exit(0)
 
     version = find_latest_version(args.changelog)
     if not version:
-        print("Warning: no version found in CHANGELOG.md")
+        print("Warning: no version found in CHANGELOG.md", file=sys.stderr)
         sys.exit(0)
 
     if not os.path.isfile(args.schematic):

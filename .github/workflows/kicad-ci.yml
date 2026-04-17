@@ -32,6 +32,7 @@ on:
       - '**.md'
       - 'LICENSE'
       - '.gitignore'
+      - 'templates/**'
   workflow_dispatch:
 
 concurrency:
@@ -243,6 +244,7 @@ jobs:
   release:
     name: "Release — Publish full doc set on tag"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: export
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -281,6 +283,7 @@ jobs:
   pages:
     name: "Pages — Deploy board preview site"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [erc, drc, export]
     if: github.event_name != 'pull_request' && needs.export.result == 'success'
     permissions:

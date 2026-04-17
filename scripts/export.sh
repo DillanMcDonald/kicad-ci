@@ -47,29 +47,24 @@ info "[1/9] Gerbers → $GERBER_DIR"
   --output "$GERBER_DIR" \
   "$PCB"
 
-info "[2/9] Drill files (Excellon) → $DRILL_DIR"
+info "[2/9] Drill files (Excellon) + drill map → $DRILL_DIR"
 "$KICAD_CLI" pcb export drill \
   --output       "$DRILL_DIR" \
   --format       excellon \
   --drill-origin absolute \
   --excellon-units mm \
+  --generate-map \
+  --map-format   gerber \
   "$PCB"
 
-info "[2/9] Drill map (Gerber format) → $DRILL_DIR"
+# Also generate a PDF drill map for documentation
 "$KICAD_CLI" pcb export drill \
   --output       "$DRILL_DIR" \
-  --format       gerber \
-  --drill-origin absolute \
-  "$PCB" || warn "Gerber drill map failed — skipping"
-
-info "[2/9] Drill map (PDF) → $DRILL_DIR"
-"$KICAD_CLI" pcb export drill \
-  --output       "$DRILL_DIR/" \
   --format       excellon \
   --drill-origin absolute \
   --generate-map \
   --map-format   pdf \
-  "$PCB" || warn "Drill map PDF export failed — skipping"
+  "$PCB" || warn "PDF drill map failed — skipping"
 
 info "Packaging fab ZIP → $FAB_DIR/${PROJECT_NAME}-fab.zip"
 (cd "$FAB_DIR" && zip -r "${PROJECT_NAME}-fab.zip" gerbers/ drill/)
@@ -203,12 +198,12 @@ else
     --quality high \
     "$PCB" || warn "3D render (bottom) failed"
 
-  # Angled render (rotated Z-axis) — produces an angled top-down view
+  # Angled render — pan/tilt/roll format: "pan,tilt,roll" in degrees
   info "[8/9] 3D render — angled top → $THREED_DIR/render-angled-top.png"
   "$KICAD_CLI" pcb render \
     --output  "$THREED_DIR/render-angled-top.png" \
     --side    top \
-    --rotate  "30" \
+    --rotate  "0,0,30" \
     --quality high \
     "$PCB" || warn "Angled render failed — skipping"
 fi

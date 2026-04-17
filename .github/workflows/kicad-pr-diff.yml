@@ -74,6 +74,7 @@ jobs:
         with:
           name: visual-diff
           path: diff/
+          if-no-files-found: warn
 
       - name: Post PR comment with diffs
         uses: actions/github-script@v7

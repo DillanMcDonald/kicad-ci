@@ -562,7 +562,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
     <li class="nav-item active" data-section="home">
       <span class="nav-icon">&#8962;</span> Home
     </li>
-    <div class="nav-divider"></div>
+    <li class="nav-divider" role="separator"></li>
     <li class="nav-item" data-section="schematic">
       <span class="nav-icon">&#128196;</span> Schematic
       <span class="nav-count">${N_DOCS}</span>
@@ -591,7 +591,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
       <span class="nav-icon">&#128202;</span> Reports
       <span class="nav-count">${N_REPORTS}</span>
     </li>
-    <div class="nav-divider"></div>
+    <li class="nav-divider" role="separator"></li>
     <li class="nav-item" data-section="interactive">
       <span class="nav-icon">&#9881;</span> Interactive Viewer
     </li>

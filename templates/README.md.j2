@@ -1,9 +1,13 @@
 {# SPDX-License-Identifier: MIT #}
 # {{ board_name }}
 
+{% if repo -%}
 [![KiCad CI](https://github.com/{{ repo }}/actions/workflows/kicad-ci.yml/badge.svg)](https://github.com/{{ repo }}/actions/workflows/kicad-ci.yml)
+{% endif -%}
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-{% if variant %}![Variant](https://img.shields.io/badge/status-{{ variant }}-{% if variant == 'RELEASED' %}green{% elif variant == 'CHECKED' %}blue{% elif variant == 'PRELIMINARY' %}yellow{% else %}orange{% endif %}){% endif %}
+{% if variant -%}
+![Variant](https://img.shields.io/badge/status-{{ variant }}-{% if variant == 'RELEASED' %}green{% elif variant == 'CHECKED' %}blue{% elif variant == 'PRELIMINARY' %}yellow{% else %}orange{% endif %})
+{% endif %}
 
 | Property | Value |
 |----------|-------|
@@ -12,7 +16,7 @@
 | Layers | {{ layer_count }} |
 | Last built | {{ build_date }} |
 
-{% if pages_url %}
+{% if pages_url -%}
 ## Documentation
 
 Browse all outputs at [{{ pages_url }}]({{ pages_url }})
@@ -24,7 +28,7 @@ Browse all outputs at [{{ pages_url }}]({{ pages_url }})
 |-------|------|
 | ![Front](output/preview/board-front.svg) | ![Back](output/preview/board-back.svg) |
 
-{% if has_3d_renders %}
+{% if has_3d_renders -%}
 ## 3D Renders
 
 | Top | Bottom |

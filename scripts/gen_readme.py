@@ -220,7 +220,7 @@ def main():
         env = Environment(loader=FileSystemLoader(tmpl_dir), keep_trailing_newline=True)
         template = env.get_template(tmpl_name)
     else:
-        print(f"Warning: template not found ({args.template}), using default")
+        print(f"Warning: template not found ({args.template}), using default", file=sys.stderr)
         env = Environment(loader=BaseLoader(), keep_trailing_newline=True)
         template = env.from_string(DEFAULT_TEMPLATE)
 
