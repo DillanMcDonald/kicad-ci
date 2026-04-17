@@ -67,9 +67,9 @@ info "[2/9] Drill map (PDF) → $DRILL_DIR"
   --output       "$DRILL_DIR/" \
   --format       excellon \
   --drill-origin absolute \
+  --generate-map \
   --map-format   pdf \
-  "$PCB" || warn "Drill map PDF export failed — skipping (may need --generate-map)"
-info "  drill map PDF"
+  "$PCB" || warn "Drill map PDF export failed — skipping"
 
 info "Packaging fab ZIP → $FAB_DIR/${PROJECT_NAME}-fab.zip"
 (cd "$FAB_DIR" && zip -r "${PROJECT_NAME}-fab.zip" gerbers/ drill/)
@@ -203,19 +203,14 @@ else
     --quality high \
     "$PCB" || warn "3D render (bottom) failed"
 
-  # Angled perspective render (top-front) — requires KiCad 8+ with --perspective support
-  info "[8/9] 3D render — perspective top → $THREED_DIR/render-perspective-top.png"
+  # Angled render (rotated Z-axis) — produces an angled top-down view
+  info "[8/9] 3D render — angled top → $THREED_DIR/render-angled-top.png"
   "$KICAD_CLI" pcb render \
-    --output      "$THREED_DIR/render-perspective-top.png" \
-    --side        top \
-    --perspective \
-    --background  opaque \
-    --width       1600 \
-    --height      1200 \
-    --quality     user \
-    --rotate      "30" \
-    "$PCB" || warn "Perspective render not supported in this KiCad version"
-  info "  render-perspective-top.png (if supported)"
+    --output  "$THREED_DIR/render-angled-top.png" \
+    --side    top \
+    --rotate  "30" \
+    --quality high \
+    "$PCB" || warn "Angled render failed — skipping"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

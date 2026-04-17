@@ -34,8 +34,11 @@ on:
       - '.gitignore'
   workflow_dispatch:
 
+concurrency:
+  group: kicad-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  KICAD_IMAGE: ghcr.io/kicad/kicad:9.0
   # ── USER CONFIG ───────────────────────────────────────────────────────────
   # Set PROJECT_DIR to the directory containing your .kicad_sch / .kicad_pcb.
   # If your KiCad files are at the repo root, remove this line entirely.
@@ -50,6 +53,7 @@ jobs:
   erc:
     name: "ERC — Electrical Rules Check"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     container:
       image: ghcr.io/kicad/kicad:9.0
       options: --user root
@@ -76,6 +80,7 @@ jobs:
   drc:
     name: "DRC — Design Rules Check"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: erc
     container:
       image: ghcr.io/kicad/kicad:9.0
@@ -103,6 +108,7 @@ jobs:
   export:
     name: "Export — Full Documentation Suite"
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [erc, drc]
     container:
       image: ghcr.io/kicad/kicad:9.0
@@ -293,30 +299,35 @@ jobs:
 
       - name: Download fab artifacts
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: fab-${{ github.sha }}
           path: site/fab/
 
       - name: Download docs artifacts
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: docs-${{ github.sha }}
           path: site/docs/
 
       - name: Download preview artifacts
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: preview-${{ github.sha }}
           path: site/preview/
 
       - name: Download assembly artifacts
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: assembly-${{ github.sha }}
           path: site/assembly/
 
       - name: Download 3D artifacts
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: 3d-${{ github.sha }}
           path: site/3d/
@@ -354,7 +365,6 @@ jobs:
           ERC_STATUS: ${{ needs.erc.result }}
           DRC_STATUS: ${{ needs.drc.result }}
           SITE_DIR: site
-          BOARD_VARIANT: ${{ env.BOARD_VARIANT }}
         run: scripts/gen-pages.sh
 
       - name: Upload Pages artifact

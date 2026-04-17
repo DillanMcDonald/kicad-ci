@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024 kicad-ci contributors
+# Copyright (c) 2026 Dillan McDonald
 #
 # Generate a README.md from a Jinja2 template using board metadata.
 # Dependencies: jinja2 (pip install jinja2)

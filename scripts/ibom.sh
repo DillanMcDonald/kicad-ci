@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Dillan McDonald
 #
-# Generate Interactive HTML BOM using InteractiveHtmlBom.
-# Requires: Python 3, pcbnew (from KiCad), InteractiveHtmlBom
-# In CI: pip install InteractiveHtmlBom
+# Generate Interactive HTML BOM using InteractiveHtmlBom (MIT).
+# Requires: Python 3, pcbnew (from KiCad)
+# Install: git clone https://github.com/openscopeproject/InteractiveHtmlBom.git
 #
 # Env vars:
 #   PROJECT_DIR   project root (default: .)
@@ -21,36 +21,28 @@ mkdir -p "$IBOM_DIR"
 
 info "Generating Interactive BOM: $PCB"
 
-# Try InteractiveHtmlBom CLI
-# The package provides generate_interactive_bom.py
-# It needs pcbnew Python module from KiCad
-if python3 -c "import pcbnew" 2>/dev/null; then
-  info "pcbnew module available"
-else
+# pcbnew Python module is required
+if ! python3 -c "import pcbnew" 2>/dev/null; then
   warn "pcbnew Python module not found — skipping iBoM generation"
   warn "iBoM requires KiCad's pcbnew Python bindings"
   exit 0
 fi
+info "pcbnew module available"
 
-# Check if InteractiveHtmlBom is installed
+# Install InteractiveHtmlBom via git clone (most reliable method)
+IBOM_REPO="/tmp/InteractiveHtmlBom"
 if ! python3 -c "import InteractiveHtmlBom" 2>/dev/null; then
-  info "Installing InteractiveHtmlBom..."
-  pip install --quiet InteractiveHtmlBom 2>/dev/null || {
-    # Fallback: try cloning
-    info "pip install failed, trying git clone..."
-    IBOM_REPO="/tmp/InteractiveHtmlBom"
-    if [[ ! -d "$IBOM_REPO" ]]; then
-      git clone --depth 1 https://github.com/openscopeproject/InteractiveHtmlBom.git "$IBOM_REPO" 2>/dev/null || {
-        warn "Could not install InteractiveHtmlBom — skipping"
-        exit 0
-      }
-    fi
-    export PYTHONPATH="$IBOM_REPO:${PYTHONPATH:-}"
-  }
+  info "Installing InteractiveHtmlBom via git clone..."
+  if [[ ! -d "$IBOM_REPO" ]]; then
+    git clone --depth 1 https://github.com/openscopeproject/InteractiveHtmlBom.git "$IBOM_REPO" 2>/dev/null || {
+      warn "Could not clone InteractiveHtmlBom — skipping"
+      exit 0
+    }
+  fi
+  export PYTHONPATH="$IBOM_REPO:${PYTHONPATH:-}"
 fi
 
 # Generate the interactive BOM
-# Use generate_interactive_bom module
 python3 -m InteractiveHtmlBom.generate_interactive_bom \
   --no-browser \
   --dest-dir "$IBOM_DIR" \
@@ -58,24 +50,9 @@ python3 -m InteractiveHtmlBom.generate_interactive_bom \
   --dark-mode \
   --show-fabrication \
   --highlight-pin1 "selected" \
-  --extra-data-file "" \
   "$PCB" 2>&1 || {
-    # If module invocation fails, try direct script
-    SCRIPT=$(python3 -c "import InteractiveHtmlBom; import os; print(os.path.join(os.path.dirname(InteractiveHtmlBom.__file__), 'generate_interactive_bom.py'))" 2>/dev/null || echo "")
-    if [[ -n "$SCRIPT" && -f "$SCRIPT" ]]; then
-      python3 "$SCRIPT" \
-        --no-browser \
-        --dest-dir "$IBOM_DIR" \
-        --name-format "ibom" \
-        --dark-mode \
-        "$PCB" || {
-          warn "iBoM generation failed — continuing without it"
-          exit 0
-        }
-    else
-      warn "iBoM generation failed — continuing without it"
-      exit 0
-    fi
+    warn "iBoM generation failed — continuing without it"
+    exit 0
   }
 
 if [[ -f "$IBOM_DIR/ibom.html" ]]; then

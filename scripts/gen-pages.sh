@@ -157,22 +157,32 @@ info "Special: iBoM=$HAS_IBOM KiCanvas=$HAS_KICANVAS variant=$BOARD_VARIANT"
 
 # ── Build file card HTML fragments ───────────────────────────────────────────
 
+_urlencode() {
+  # Percent-encode spaces and special chars for href attributes
+  local s="$1"
+  s="${s// /%20}"
+  s="${s//\#/%23}"
+  s="${s//\?/%3F}"
+  echo "$s"
+}
+
 _file_card() {
   local filepath="$1" wide="${2:-false}"
-  local fname ext icon_id class
+  local fname ext icon_id class href
   fname=$(_basename "$filepath")
   ext=$(_ext "$fname")
   icon_id=$(_icon_for_ext "$ext")
+  href=$(_urlencode "$filepath")
   class="file-card"
   [[ "$wide" == "true" ]] && class="file-card wide"
 
   if [[ "$wide" == "true" && ( "$ext" == "svg" || "$ext" == "png" || "$ext" == "jpg" ) ]]; then
-    printf '<a href="%s" class="%s" target="_blank" data-name="%s">' "$filepath" "$class" "$fname"
-    printf '<div class="file-thumb"><img src="%s" alt="%s" loading="lazy"></div>' "$filepath" "$fname"
+    printf '<a href="%s" class="%s" target="_blank" data-name="%s">' "$href" "$class" "$fname"
+    printf '<div class="file-thumb"><img src="%s" alt="%s" loading="lazy"></div>' "$href" "$fname"
     printf '<div class="file-info"><span class="file-icon" data-icon="%s"></span>' "$icon_id"
     printf '<span class="file-name">%s</span></div></a>\n' "$fname"
   else
-    printf '<a href="%s" class="%s" target="_blank" data-name="%s">' "$filepath" "$class" "$fname"
+    printf '<a href="%s" class="%s" target="_blank" data-name="%s">' "$href" "$class" "$fname"
     printf '<span class="file-icon" data-icon="%s"></span>' "$icon_id"
     printf '<span class="file-name">%s</span></a>\n' "$fname"
   fi
@@ -553,7 +563,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
       <span class="nav-icon">&#8962;</span> Home
     </li>
     <div class="nav-divider"></div>
-    <li class="nav-item" data-section="schematic" style="${N_DOCS:-0}" >
+    <li class="nav-item" data-section="schematic">
       <span class="nav-icon">&#128196;</span> Schematic
       <span class="nav-count">${N_DOCS}</span>
     </li>
@@ -607,7 +617,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
     </div>
 
     <div class="category-grid">
-      <div class="category-card${N_DOCS:+ }$( [[ "$N_DOCS" -eq 0 ]] && echo ' empty' )" onclick="navigateTo('schematic')">
+      <div class="category-card$( [[ "$N_DOCS" -eq 0 ]] && echo ' empty' )" onclick="navigateTo('schematic')">
         <div class="cat-icon">&#128196;</div>
         <h3>Schematic</h3>
         <p class="cat-desc">PDF and SVG schematic exports</p>

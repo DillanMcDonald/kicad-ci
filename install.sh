@@ -49,6 +49,7 @@ FILES=(
 
 GITATTRIBUTES_CONTENT='# kicad-ci: force LF line endings so shell scripts work in Linux containers
 scripts/**   text eol=lf
+*.py         text eol=lf
 *.sh         text eol=lf
 *.yml        text eol=lf
 *.yaml       text eol=lf

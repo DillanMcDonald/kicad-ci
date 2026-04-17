@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024 kicad-ci contributors
+# Copyright (c) 2026 Dillan McDonald
 #
 # Read latest version from CHANGELOG.md and write to KiCad schematic title block.
 # Dependencies: Python 3 stdlib only.
@@ -34,14 +34,22 @@ def patch_schematic_rev(sch_path, version):
         print("Warning: no title_block found in schematic, skipping")
         return False
 
-    # Check for rev field inside title_block
-    # Match (rev "anything") inside the file
+    # Extract the title_block section and only replace (rev "...") within it.
+    # This avoids replacing (rev ...) elsewhere (e.g., in symbols or sheets).
+    tb_pattern = re.compile(r'(\(title_block\b.*?\))\s*\)', re.DOTALL)
+    tb_match = tb_pattern.search(content)
+    if not tb_match:
+        print("Warning: could not parse title_block section, skipping")
+        return False
+
+    tb_text = tb_match.group(0)
     rev_pattern = re.compile(r'(\(rev\s+)"([^"]*)"(\))')
-    if not rev_pattern.search(content):
+    if not rev_pattern.search(tb_text):
         print("Warning: no rev field in title_block, skipping")
         return False
 
-    new_content = rev_pattern.sub(rf'\g<1>"{version}"\3', content)
+    new_tb = rev_pattern.sub(rf'\g<1>"{version}"\g<3>', tb_text)
+    new_content = content[:tb_match.start()] + new_tb + content[tb_match.end():]
 
     with open(sch_path, "w", encoding="utf-8") as f:
         f.write(new_content)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024 kicad-ci contributors
+# Copyright (c) 2026 Dillan McDonald
 #
 # Extract test point pads from a KiCad 8+ .kicad_pcb file to CSV.
 # Dependencies: Python 3 stdlib only.

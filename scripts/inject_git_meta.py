@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024 kicad-ci contributors
+# Copyright (c) 2026 Dillan McDonald
 #
 # Inject git metadata into a KiCad .kicad_pro project file's text_variables.
 # Dependencies: Python 3 stdlib only.
@@ -62,8 +62,12 @@ def main():
         print(f"Error: Project file not found: {args.project}", file=sys.stderr)
         sys.exit(1)
 
-    with open(args.project, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(args.project, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Error: malformed JSON in {args.project}: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # Resolve values: CLI override > git auto-detect > fallback
     git_hash = args.git_hash or get_git_hash() or "unknown"
