@@ -1,13 +1,21 @@
 # SPDX-License-Identifier: MIT
 # Runtime dependencies for kicad-ci Python scripts.
 #
-# All packages MIT or BSD licensed — safe to import directly.
+# All packages MIT, BSD, or Apache-licensed — no GPL/LGPL in Python import path.
 # GPL/LGPL tools (kicad-cli, Inkscape, cairosvg) invoked via subprocess only.
+
+# --- Core HTTP client ---
+requests>=2.31       # Apache 2.0 — HTTP client for distributor APIs
 
 # --- Feature 2: per-layer fabrication PDF ---
 reportlab>=4.0,<5.0     # BSD — PDF canvas, Table, TableStyle
 pypdf>=4.0,<5.0         # MIT — PDF merge, bookmarks
 
-# --- Optional: Excellon SVG rendering (Feature 2 F2-T4 enhancement) ---
-# Pin to 2.x; 3.x has breaking API changes.
-# pygerber>=2.3,<3.0    # MIT — Excellon parse/render (uncomment to enable)
+# --- Feature 6: KiCost-style pricing XLSX ---
+openpyxl>=3.1        # MIT — XLSX generation (4-sheet BOM workbook)
+
+# --- CLI ---
+typer>=0.9           # MIT — Typer CLI for scripts/pricing_xlsx.py
+
+# --- Testing ---
+pytest>=7.0          # MIT — test framework
