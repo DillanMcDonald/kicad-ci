@@ -5,11 +5,12 @@
 # Export complete professional documentation set for a KiCad project.
 #
 # Outputs:
-#   fab/              Gerbers + Excellon drill → fab-upload ZIP
+#   fab/              Gerbers + Excellon drill + drill map PDF → fab-upload ZIP
 #   docs/             Schematic PDF, assembly drawings (front/back), board PDFs
 #   assembly/         BOM CSV + pick-and-place / CPL file → assembly ZIP
-#   3d/               STEP model + 3D render PNGs
+#   3d/               STEP model + 3D render PNGs (top, bottom, perspective)
 #   preview/          SVG board previews (front + back)
+#   source/           KiCad source files for KiCanvas interactive viewer
 #
 # Env vars:
 #   PROJECT_DIR   - root to search for KiCad files  (default: .)
@@ -41,12 +42,12 @@ GERBER_DIR="$FAB_DIR/gerbers"
 DRILL_DIR="$FAB_DIR/drill"
 mkdir -p "$GERBER_DIR" "$DRILL_DIR"
 
-info "[1/8] Gerbers → $GERBER_DIR"
+info "[1/9] Gerbers → $GERBER_DIR"
 "$KICAD_CLI" pcb export gerbers \
   --output "$GERBER_DIR" \
   "$PCB"
 
-info "[2/8] Drill files (Excellon) → $DRILL_DIR"
+info "[2/9] Drill files (Excellon) → $DRILL_DIR"
 "$KICAD_CLI" pcb export drill \
   --output       "$DRILL_DIR" \
   --format       excellon \
@@ -54,12 +55,21 @@ info "[2/8] Drill files (Excellon) → $DRILL_DIR"
   --excellon-units mm \
   "$PCB"
 
-info "[2/8] Drill map (Gerber format) → $DRILL_DIR"
+info "[2/9] Drill map (Gerber format) → $DRILL_DIR"
 "$KICAD_CLI" pcb export drill \
   --output       "$DRILL_DIR" \
   --format       gerber \
   --drill-origin absolute \
   "$PCB" || warn "Gerber drill map failed — skipping"
+
+info "[2/9] Drill map (PDF) → $DRILL_DIR"
+"$KICAD_CLI" pcb export drill \
+  --output       "$DRILL_DIR/" \
+  --format       excellon \
+  --drill-origin absolute \
+  --map-format   pdf \
+  "$PCB" || warn "Drill map PDF export failed — skipping (may need --generate-map)"
+info "  drill map PDF"
 
 info "Packaging fab ZIP → $FAB_DIR/${PROJECT_NAME}-fab.zip"
 (cd "$FAB_DIR" && zip -r "${PROJECT_NAME}-fab.zip" gerbers/ drill/)
@@ -70,12 +80,12 @@ info "Packaging fab ZIP → $FAB_DIR/${PROJECT_NAME}-fab.zip"
 DOCS_DIR="$OUTPUT_DIR/docs"
 mkdir -p "$DOCS_DIR"
 
-info "[3/8] Schematic PDF → $DOCS_DIR/schematic.pdf"
+info "[3/9] Schematic PDF → $DOCS_DIR/schematic.pdf"
 "$KICAD_CLI" sch export pdf \
   --output "$DOCS_DIR/schematic.pdf" \
   "$SCH"
 
-info "[3/8] Schematic SVG → $DOCS_DIR/schematic.svg"
+info "[3/9] Schematic SVG → $DOCS_DIR/schematic.svg"
 "$KICAD_CLI" sch export svg \
   --output "$DOCS_DIR" \
   "$SCH" || warn "Schematic SVG failed — skipping"
@@ -86,21 +96,21 @@ info "[3/8] Schematic SVG → $DOCS_DIR/schematic.svg"
 #    Fabrication drawing: all copper + mask + silk + edge.
 # ─────────────────────────────────────────────────────────────────────────────
 
-info "[4/8] Assembly drawing — front → $DOCS_DIR/assembly-front.pdf"
+info "[4/9] Assembly drawing — front → $DOCS_DIR/assembly-front.pdf"
 "$KICAD_CLI" pcb export pdf \
   --output        "$DOCS_DIR/assembly-front.pdf" \
   --layers        "F.Cu,F.Fab,F.SilkS,F.Courtyard,Edge.Cuts" \
   --black-and-white \
   "$PCB"
 
-info "[4/8] Assembly drawing — back → $DOCS_DIR/assembly-back.pdf"
+info "[4/9] Assembly drawing — back → $DOCS_DIR/assembly-back.pdf"
 "$KICAD_CLI" pcb export pdf \
   --output        "$DOCS_DIR/assembly-back.pdf" \
   --layers        "B.Cu,B.Fab,B.SilkS,B.Courtyard,Edge.Cuts" \
   --black-and-white \
   "$PCB"
 
-info "[4/8] Board layout — all copper layers → $DOCS_DIR/board-all-layers.pdf"
+info "[4/9] Board layout — all copper layers → $DOCS_DIR/board-all-layers.pdf"
 "$KICAD_CLI" pcb export pdf \
   --output        "$DOCS_DIR/board-all-layers.pdf" \
   --layers        "F.Cu,B.Cu,F.SilkS,B.SilkS,F.Mask,B.Mask,F.Paste,B.Paste,Edge.Cuts,Margin" \
@@ -113,13 +123,13 @@ info "[4/8] Board layout — all copper layers → $DOCS_DIR/board-all-layers.pd
 PREVIEW_DIR="$OUTPUT_DIR/preview"
 mkdir -p "$PREVIEW_DIR"
 
-info "[5/8] Board SVG — front → $PREVIEW_DIR/board-front.svg"
+info "[5/9] Board SVG — front → $PREVIEW_DIR/board-front.svg"
 "$KICAD_CLI" pcb export svg \
   --output        "$PREVIEW_DIR/board-front.svg" \
   --layers        "F.Cu,F.Fab,F.SilkS,Edge.Cuts" \
   "$PCB" || warn "Board SVG (front) failed — skipping"
 
-info "[5/8] Board SVG — back → $PREVIEW_DIR/board-back.svg"
+info "[5/9] Board SVG — back → $PREVIEW_DIR/board-back.svg"
 "$KICAD_CLI" pcb export svg \
   --output        "$PREVIEW_DIR/board-back.svg" \
   --layers        "B.Cu,B.Fab,B.SilkS,Edge.Cuts" \
@@ -133,12 +143,12 @@ info "[5/8] Board SVG — back → $PREVIEW_DIR/board-back.svg"
 ASSEMBLY_DIR="$OUTPUT_DIR/assembly"
 mkdir -p "$ASSEMBLY_DIR"
 
-info "[6/8] BOM → $ASSEMBLY_DIR/bom.csv"
+info "[6/9] BOM → $ASSEMBLY_DIR/bom.csv"
 "$KICAD_CLI" sch export bom \
   --output "$ASSEMBLY_DIR/bom.csv" \
   "$SCH"
 
-info "[6/8] Pick & place (front) → $ASSEMBLY_DIR/positions-front.csv"
+info "[6/9] Pick & place (front) → $ASSEMBLY_DIR/positions-front.csv"
 "$KICAD_CLI" pcb export pos \
   --output  "$ASSEMBLY_DIR/positions-front.csv" \
   --format  csv \
@@ -146,7 +156,7 @@ info "[6/8] Pick & place (front) → $ASSEMBLY_DIR/positions-front.csv"
   --side    front \
   "$PCB" || warn "Position file (front) failed — skipping"
 
-info "[6/8] Pick & place (back) → $ASSEMBLY_DIR/positions-back.csv"
+info "[6/9] Pick & place (back) → $ASSEMBLY_DIR/positions-back.csv"
 "$KICAD_CLI" pcb export pos \
   --output  "$ASSEMBLY_DIR/positions-back.csv" \
   --format  csv \
@@ -164,7 +174,7 @@ info "Packaging assembly ZIP → $ASSEMBLY_DIR/${PROJECT_NAME}-assembly.zip"
 THREED_DIR="$OUTPUT_DIR/3d"
 mkdir -p "$THREED_DIR"
 
-info "[7/8] STEP 3D model → $THREED_DIR/${PROJECT_NAME}.step"
+info "[7/9] STEP 3D model → $THREED_DIR/${PROJECT_NAME}.step"
 "$KICAD_CLI" pcb export step \
   --output       "$THREED_DIR/${PROJECT_NAME}.step" \
   --subst-models \
@@ -177,22 +187,54 @@ info "[7/8] STEP 3D model → $THREED_DIR/${PROJECT_NAME}.step"
 #    Enable on self-hosted runners or locally.
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "${SKIP_RENDER:-0}" == "1" ]]; then
-  warn "[8/8] SKIP_RENDER=1 — skipping 3D renders"
+  warn "[8/9] SKIP_RENDER=1 — skipping 3D renders"
 else
-  info "[8/8] 3D render — top → $THREED_DIR/render-top.png"
+  info "[8/9] 3D render — top → $THREED_DIR/render-top.png"
   "$KICAD_CLI" pcb render \
     --output  "$THREED_DIR/render-top.png" \
     --side    top \
     --quality high \
     "$PCB" || warn "3D render (top) failed — GPU/display unavailable?"
 
-  info "[8/8] 3D render — bottom → $THREED_DIR/render-bottom.png"
+  info "[8/9] 3D render — bottom → $THREED_DIR/render-bottom.png"
   "$KICAD_CLI" pcb render \
     --output  "$THREED_DIR/render-bottom.png" \
     --side    bottom \
     --quality high \
     "$PCB" || warn "3D render (bottom) failed"
+
+  # Angled perspective render (top-front) — requires KiCad 8+ with --perspective support
+  info "[8/9] 3D render — perspective top → $THREED_DIR/render-perspective-top.png"
+  "$KICAD_CLI" pcb render \
+    --output      "$THREED_DIR/render-perspective-top.png" \
+    --side        top \
+    --perspective \
+    --background  opaque \
+    --width       1600 \
+    --height      1200 \
+    --quality     user \
+    --rotate      "30" \
+    "$PCB" || warn "Perspective render not supported in this KiCad version"
+  info "  render-perspective-top.png (if supported)"
 fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. SOURCE FILES — for KiCanvas interactive viewer
+#    Copy KiCad source files so KiCanvas web component can load them directly.
+# ─────────────────────────────────────────────────────────────────────────────
+info "[9/9] Copying source files for interactive viewer"
+SOURCE_DIR="$OUTPUT_DIR/source"
+mkdir -p "$SOURCE_DIR"
+
+# Copy PCB and schematic for KiCanvas web component
+cp "$PCB" "$SOURCE_DIR/" 2>/dev/null || true
+cp "$SCH" "$SOURCE_DIR/" 2>/dev/null || true
+
+# Copy any sub-sheets if they exist (hierarchical schematics)
+PCB_DIR="$(dirname "$PCB")"
+find "$PCB_DIR" -maxdepth 1 -name "*.kicad_sch" ! -name "*-rescue*" -exec cp {} "$SOURCE_DIR/" \; 2>/dev/null || true
+
+info "  source files copied for KiCanvas"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary

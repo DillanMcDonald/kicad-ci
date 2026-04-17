@@ -1,0 +1,46 @@
+{# SPDX-License-Identifier: MIT #}
+# {{ board_name }}
+
+[![KiCad CI](https://github.com/{{ repo }}/actions/workflows/kicad-ci.yml/badge.svg)](https://github.com/{{ repo }}/actions/workflows/kicad-ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+{% if variant %}![Variant](https://img.shields.io/badge/status-{{ variant }}-{% if variant == 'RELEASED' %}green{% elif variant == 'CHECKED' %}blue{% elif variant == 'PRELIMINARY' %}yellow{% else %}orange{% endif %}){% endif %}
+
+| Property | Value |
+|----------|-------|
+| Dimensions | {{ board_width_mm }} x {{ board_height_mm }} mm |
+| Components | {{ component_count }} |
+| Layers | {{ layer_count }} |
+| Last built | {{ build_date }} |
+
+{% if pages_url %}
+## Documentation
+
+Browse all outputs at [{{ pages_url }}]({{ pages_url }})
+{% endif %}
+
+## Board Preview
+
+| Front | Back |
+|-------|------|
+| ![Front](output/preview/board-front.svg) | ![Back](output/preview/board-back.svg) |
+
+{% if has_3d_renders %}
+## 3D Renders
+
+| Top | Bottom |
+|-----|--------|
+| ![Top](output/3d/render-top.png) | ![Bottom](output/3d/render-bottom.png) |
+{% endif %}
+
+## Quick Start
+
+```bash
+# Run locally (requires KiCad 9+)
+bash scripts/erc.sh        # Electrical rules check
+bash scripts/drc.sh        # Design rules check
+bash scripts/export.sh     # Export all documentation
+```
+
+## License
+
+MIT -- see [LICENSE](LICENSE).

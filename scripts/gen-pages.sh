@@ -29,6 +29,7 @@
 #   GITHUB_REPOSITORY  owner/repo
 #   GITHUB_SERVER_URL  https://github.com
 #   GITHUB_RUN_ID      Actions run ID
+#   BOARD_VARIANT      DRAFT | PRELIMINARY | CHECKED | RELEASED
 
 set -euo pipefail
 
@@ -47,6 +48,7 @@ RUN_ID="${GITHUB_RUN_ID:-}"
 REPO_URL="${SERVER}/${GREPO}"
 RUN_URL="${REPO_URL}/actions/runs/${RUN_ID}"
 BUILD_DATE="$(date -u '+%Y-%m-%d %H:%M UTC')"
+BOARD_VARIANT="${BOARD_VARIANT:-}"
 
 mkdir -p "$SITE_DIR"
 
@@ -132,8 +134,26 @@ N_3D=$(_count_files "3d")
 N_ERC=$(_count_files "reports/erc")
 N_DRC=$(_count_files "reports/drc")
 N_REPORTS=$(( N_ERC + N_DRC ))
+N_TESTPOINTS=$(_count_files "testpoints")
+N_SOURCE=$(_count_files "source")
 
-info "Files found: docs=$N_DOCS fab=$N_FAB preview=$N_PREVIEW assembly=$N_ASSEMBLY 3d=$N_3D reports=$N_REPORTS"
+# Detect special files
+HAS_IBOM="false"
+[[ -f "$SITE_DIR/assembly/ibom.html" ]] && HAS_IBOM="true"
+HAS_KICANVAS="false"
+KICANVAS_PCB=""
+KICANVAS_SCH=""
+if [[ -d "$SITE_DIR/source" ]]; then
+  KICANVAS_PCB=$(find "$SITE_DIR/source" -name "*.kicad_pcb" 2>/dev/null | head -1 || true)
+  KICANVAS_SCH=$(find "$SITE_DIR/source" -name "*.kicad_sch" 2>/dev/null | head -1 || true)
+  [[ -n "$KICANVAS_PCB" || -n "$KICANVAS_SCH" ]] && HAS_KICANVAS="true"
+fi
+# Make paths relative to site dir
+[[ -n "$KICANVAS_PCB" ]] && KICANVAS_PCB="${KICANVAS_PCB#$SITE_DIR/}"
+[[ -n "$KICANVAS_SCH" ]] && KICANVAS_SCH="${KICANVAS_SCH#$SITE_DIR/}"
+
+info "Files found: docs=$N_DOCS fab=$N_FAB preview=$N_PREVIEW assembly=$N_ASSEMBLY 3d=$N_3D reports=$N_REPORTS testpoints=$N_TESTPOINTS"
+info "Special: iBoM=$HAS_IBOM KiCanvas=$HAS_KICANVAS variant=$BOARD_VARIANT"
 
 # ── Build file card HTML fragments ───────────────────────────────────────────
 
@@ -186,6 +206,9 @@ if [[ -d "$SITE_DIR/reports/drc" ]]; then
   CARDS_REPORTS+=$(_build_section reports-drc reports/drc false)
 fi
 
+# Testpoints
+CARDS_TESTPOINTS=$(_build_section testpoints testpoints false)
+
 # ── ERC/DRC summary from JSON ────────────────────────────────────────────────
 ERC_SUMMARY=""
 DRC_SUMMARY=""
@@ -225,6 +248,7 @@ cat > "$SITE_DIR/index.html" << HTMLEOF
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${BOARD_NAME} &mdash; KiCad CI</title>
+<script type="module" src="https://kicanvas.org/kicanvas/kicanvas.js"></script>
 <style>
 /* ── Reset & Theme Variables ──────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -454,6 +478,44 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 /* ── Search highlight ─────────────────────────────────────────────────────── */
 .file-card.search-hidden { display: none; }
 .no-results { color: var(--text-secondary); font-style: italic; padding: 32px; text-align: center; }
+
+/* ── KiCanvas Interactive Viewer ──────────────────────────────────────────── */
+.kicanvas-container {
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: 8px; overflow: hidden; margin-bottom: 24px;
+}
+.kicanvas-container kc-board,
+.kicanvas-container kc-schematic {
+  width: 100%; height: 600px; display: block;
+}
+.viewer-tabs {
+  display: flex; border-bottom: 1px solid var(--border); background: var(--bg-tertiary);
+}
+.viewer-tab {
+  padding: 10px 20px; cursor: pointer; font-size: .85rem; font-weight: 600;
+  color: var(--text-secondary); border-bottom: 2px solid transparent;
+  transition: all .15s ease; background: none; border-top: none; border-left: none; border-right: none;
+}
+.viewer-tab:hover { color: var(--accent); }
+.viewer-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.viewer-panel { display: none; }
+.viewer-panel.active { display: block; }
+
+/* ── iBoM embed ───────────────────────────────────────────────────────────── */
+.ibom-frame {
+  width: 100%; height: 700px; border: 1px solid var(--card-border);
+  border-radius: 8px; background: #1a1a2e;
+}
+
+/* ── Variant Badge ────────────────────────────────────────────────────────── */
+.variant-badge {
+  font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+  padding: 3px 10px; border-radius: 4px; margin-left: 8px;
+}
+.variant-DRAFT       { background: #f97316; color: #fff; }
+.variant-PRELIMINARY { background: #eab308; color: #000; }
+.variant-CHECKED     { background: #3b82f6; color: #fff; }
+.variant-RELEASED    { background: #22c55e; color: #fff; }
 </style>
 </head>
 <body>
@@ -466,7 +528,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
     <button class="topbar-btn" id="nav-home" title="Home" onclick="navigateTo('home')">&#8962;</button>
   </div>
   <div class="topbar-center">
-    <h1>${BOARD_NAME}</h1>
+    <h1>${BOARD_NAME}$( [[ -n "$BOARD_VARIANT" ]] && echo "<span class=\"variant-badge variant-${BOARD_VARIANT}\">${BOARD_VARIANT}</span>" )</h1>
     <div class="sub">
       <a href="${REPO_URL}/commit/${COMMIT_SHA}">${COMMIT_SHORT}</a>
       &middot; <a href="${RUN_URL}">CI run</a>
@@ -511,9 +573,17 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
       <span class="nav-icon">&#128230;</span> 3D Model
       <span class="nav-count">${N_3D}</span>
     </li>
+    <li class="nav-item" data-section="testpoints">
+      <span class="nav-icon">&#128205;</span> Test Points
+      <span class="nav-count">${N_TESTPOINTS}</span>
+    </li>
     <li class="nav-item" data-section="reports">
       <span class="nav-icon">&#128202;</span> Reports
       <span class="nav-count">${N_REPORTS}</span>
+    </li>
+    <div class="nav-divider"></div>
+    <li class="nav-item" data-section="interactive">
+      <span class="nav-icon">&#9881;</span> Interactive Viewer
     </li>
   </ul>
 </nav>
@@ -567,11 +637,22 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
         <p class="cat-desc">STEP model and 3D renders</p>
         <span class="cat-count">${N_3D} files</span>
       </div>
+      <div class="category-card$( [[ "$N_TESTPOINTS" -eq 0 ]] && echo ' empty' )" onclick="navigateTo('testpoints')">
+        <div class="cat-icon">&#128205;</div>
+        <h3>Test Points</h3>
+        <p class="cat-desc">CSV lists of testpoint pads &mdash; top and bottom</p>
+        <span class="cat-count">${N_TESTPOINTS} files</span>
+      </div>
       <div class="category-card$( [[ "$N_REPORTS" -eq 0 ]] && echo ' empty' )" onclick="navigateTo('reports')">
         <div class="cat-icon">&#128202;</div>
         <h3>Reports</h3>
         <p class="cat-desc">ERC and DRC check reports</p>
         <span class="cat-count">${N_REPORTS} files</span>
+      </div>
+      <div class="category-card$( [[ "$HAS_KICANVAS" != "true" && "$HAS_IBOM" != "true" ]] && echo ' empty' )" onclick="navigateTo('interactive')">
+        <div class="cat-icon">&#9881;</div>
+        <h3>Interactive Viewer</h3>
+        <p class="cat-desc">KiCanvas PCB/schematic viewer &amp; Interactive BOM</p>
       </div>
     </div>
   </div>
@@ -634,6 +715,58 @@ ${CARDS_PREVIEW}
     <div class="file-grid">
 ${CARDS_3D}
     </div>
+  </div>
+
+  <!-- TESTPOINTS Section -->
+  <div class="page-section" id="section-testpoints">
+    <div class="section-header">
+      <span class="back-link" onclick="navigateTo('home')">&#8592; Home</span>
+      <h2>Test Points</h2>
+    </div>
+    <p class="section-desc">CSV lists of board test points &mdash; top side, bottom side, and combined.</p>
+    <div class="file-grid">
+${CARDS_TESTPOINTS}
+    </div>
+  </div>
+
+  <!-- INTERACTIVE Section (KiCanvas + iBoM) -->
+  <div class="page-section" id="section-interactive">
+    <div class="section-header">
+      <span class="back-link" onclick="navigateTo('home')">&#8592; Home</span>
+      <h2>Interactive Viewer</h2>
+    </div>
+    <p class="section-desc">In-browser viewers for PCB layout, schematic, and interactive BOM. Powered by <a href="https://kicanvas.org" target="_blank">KiCanvas</a> (Apache 2.0).</p>
+
+$( if [[ "$HAS_KICANVAS" == "true" || "$HAS_IBOM" == "true" ]]; then
+  echo '    <div class="viewer-tabs">'
+  [[ -n "$KICANVAS_PCB" ]] && echo '      <button class="viewer-tab active" data-panel="panel-pcb">PCB Layout</button>'
+  [[ -n "$KICANVAS_SCH" ]] && echo '      <button class="viewer-tab" data-panel="panel-sch">Schematic</button>'
+  [[ "$HAS_IBOM" == "true" ]] && echo '      <button class="viewer-tab" data-panel="panel-ibom">Interactive BOM</button>'
+  echo '    </div>'
+
+  if [[ -n "$KICANVAS_PCB" ]]; then
+    echo '    <div class="viewer-panel active" id="panel-pcb">'
+    echo '      <div class="kicanvas-container">'
+    echo "        <kc-board src=\"${KICANVAS_PCB}\"></kc-board>"
+    echo '      </div>'
+    echo '    </div>'
+  fi
+  if [[ -n "$KICANVAS_SCH" ]]; then
+    echo "    <div class=\"viewer-panel$([ -z "$KICANVAS_PCB" ] && echo ' active')\" id=\"panel-sch\">"
+    echo '      <div class="kicanvas-container">'
+    echo "        <kc-schematic src=\"${KICANVAS_SCH}\"></kc-schematic>"
+    echo '      </div>'
+    echo '    </div>'
+  fi
+  if [[ "$HAS_IBOM" == "true" ]]; then
+    echo "    <div class=\"viewer-panel\" id=\"panel-ibom\">"
+    echo '      <iframe class="ibom-frame" src="assembly/ibom.html" title="Interactive BOM"></iframe>'
+    echo '    </div>'
+  fi
+else
+  echo '    <p class="section-desc" style="opacity:.5;">No interactive viewers available for this build. Source files or iBoM were not generated.</p>'
+fi )
+
   </div>
 
   <!-- REPORTS Section -->
@@ -799,6 +932,17 @@ ${CARDS_REPORTS}
       msg.textContent = 'No files matching "' + this.value + '"';
       document.querySelector('.main-content').appendChild(msg);
     }
+  });
+
+  // ── Viewer Tabs ───────────────────────────────────────────────────────
+  document.querySelectorAll('.viewer-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.viewer-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.viewer-panel').forEach(function(p) { p.classList.remove('active'); });
+      this.classList.add('active');
+      var panel = document.getElementById(this.getAttribute('data-panel'));
+      if (panel) panel.classList.add('active');
+    });
   });
 
   // Clear search on Escape

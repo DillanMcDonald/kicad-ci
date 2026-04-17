@@ -32,11 +32,19 @@ RAW="https://raw.githubusercontent.com/$REPO/$BRANCH"
 
 FILES=(
   ".github/workflows/kicad-ci.yml"
+  ".github/workflows/kicad-pr-diff.yml"
   "scripts/erc.sh"
   "scripts/drc.sh"
   "scripts/export.sh"
+  "scripts/ibom.sh"
   "scripts/gen-pages.sh"
   "scripts/lib/common.sh"
+  "scripts/extract_testpoints.py"
+  "scripts/inject_git_meta.py"
+  "scripts/sync_revision.py"
+  "scripts/gen_readme.py"
+  "templates/README.md.j2"
+  "CHANGELOG.md"
 )
 
 GITATTRIBUTES_CONTENT='# kicad-ci: force LF line endings so shell scripts work in Linux containers
@@ -113,7 +121,7 @@ for f in "${FILES[@]}"; do
   info "$f"
 done
 
-chmod +x "$TARGET/scripts/"*.sh "$TARGET/scripts/lib/"*.sh
+chmod +x "$TARGET/scripts/"*.sh "$TARGET/scripts/lib/"*.sh "$TARGET/scripts/"*.py 2>/dev/null || true
 
 # ── .gitattributes ────────────────────────────────────────────────────────────
 

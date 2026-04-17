@@ -4,20 +4,16 @@
 # KiCad CI/CD Pipeline — Professional Documentation Suite
 # ─────────────────────────────────────────────────────────────────────────────
 # Jobs:
-#   erc    → Electrical Rules Check           (must pass; blocks drc)
-#   drc    → Design Rules Check + sch parity  (must pass; blocks export)
-#   export → Full professional doc set:
-#              fab/        Gerbers + drill + fab ZIP
-#              docs/       Schematic PDF, assembly drawings, board layout PDFs
-#              preview/    SVG board previews (front + back)
-#              assembly/   BOM + pick-and-place / CPL + assembly ZIP
-#              3d/         STEP model + 3D renders (if GPU available)
-#   release→ GitHub Release with all docs attached (tags matching v*)
+#   erc       → Electrical Rules Check           (must pass; blocks drc)
+#   drc       → Design Rules Check + sch parity  (must pass; blocks export)
+#   export    → Full professional doc set + iBoM + testpoints + README
+#   release   → GitHub Release with all docs attached (tags matching v*)
+#   pages     → KDT-style HTML navigation site on GitHub Pages
 #
 # Container: ghcr.io/kicad/kicad:9.0  (official KiCad image, GPL-3.0)
 #   Running a GPL binary in CI does NOT affect the license of these scripts.
 #
-# All workflow scripts (scripts/*.sh) are MIT-licensed.
+# All workflow scripts (scripts/*.sh, scripts/*.py) are MIT-licensed.
 
 name: KiCad CI
 
@@ -25,8 +21,17 @@ on:
   push:
     branches: ["**"]
     tags:     ["v*"]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - 'templates/**'
   pull_request:
     branches: ["**"]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
   workflow_dispatch:
 
 env:
@@ -34,11 +39,11 @@ env:
   # ── USER CONFIG ───────────────────────────────────────────────────────────
   # Set PROJECT_DIR to the directory containing your .kicad_sch / .kicad_pcb.
   # If your KiCad files are at the repo root, remove this line entirely.
-  # Example: PROJECT_DIR: hardware/my-board
   PROJECT_DIR: test-project   # ← change or remove this line
   # Set SKIP_RENDER: "0" on a self-hosted runner with GPU for 3D renders.
-  # GitHub-hosted runners have no GPU — renders are skipped by default.
   SKIP_RENDER: "1"
+  # Board variant stamp: DRAFT | PRELIMINARY | CHECKED | RELEASED
+  BOARD_VARIANT: "DRAFT"
 
 # ── ERC ───────────────────────────────────────────────────────────────────────
 jobs:
@@ -106,12 +111,64 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Make scripts executable
-        run: chmod +x scripts/*.sh scripts/lib/*.sh
+        run: chmod +x scripts/*.sh scripts/lib/*.sh scripts/*.py
+
+      - name: Cache KiCad 3D models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/kicad/9.0/3dmodels
+            /root/.local/share/kicad/9.0/3dmodels
+          key: kicad-3d-${{ hashFiles('**/*.kicad_pcb') }}
+          restore-keys: kicad-3d-
+
+      - name: Inject git metadata
+        run: |
+          PRO=$(find "$PROJECT_DIR" -maxdepth 2 -name "*.kicad_pro" | sort | head -1)
+          if [[ -n "$PRO" ]]; then
+            python3 scripts/inject_git_meta.py \
+              --project "$PRO" \
+              --variant "$BOARD_VARIANT"
+          fi
+
+      - name: Sync revision from CHANGELOG
+        run: |
+          SCH=$(find "$PROJECT_DIR" -maxdepth 2 -name "*.kicad_sch" \
+                ! -name "*-rescue*" ! -path "*/ignore/*" ! -path "*/backups/*" \
+                | sort | head -1)
+          if [[ -n "$SCH" ]]; then
+            python3 scripts/sync_revision.py --schematic "$SCH"
+          fi
 
       - name: Export all documentation
         run: scripts/export.sh
+
+      - name: Generate Interactive BOM
+        run: scripts/ibom.sh
+        continue-on-error: true
+
+      - name: Extract test points
+        run: |
+          PCB=$(find "$PROJECT_DIR" -maxdepth 2 -name "*.kicad_pcb" \
+                ! -path "*/ignore/*" ! -path "*/backups/*" | sort | head -1)
+          if [[ -n "$PCB" ]]; then
+            python3 scripts/extract_testpoints.py --pcb "$PCB"
+          fi
+        continue-on-error: true
+
+      - name: Generate README
+        run: |
+          PCB=$(find "$PROJECT_DIR" -maxdepth 2 -name "*.kicad_pcb" \
+                ! -path "*/ignore/*" ! -path "*/backups/*" | sort | head -1)
+          if [[ -n "$PCB" ]]; then
+            pip install --quiet jinja2 2>/dev/null || true
+            python3 scripts/gen_readme.py --pcb "$PCB" --output output/docs/BOARD-README.md
+          fi
+        continue-on-error: true
 
       # ── Fabrication files (for fab house upload) ──────────────────────────
       - name: Upload — Fabrication (Gerbers + drill + ZIP)
@@ -141,7 +198,7 @@ jobs:
           if-no-files-found: warn
 
       # ── Assembly BOM + pick & place ───────────────────────────────────────
-      - name: Upload — Assembly (BOM + pick-and-place + ZIP)
+      - name: Upload — Assembly (BOM + iBoM + pick-and-place + ZIP)
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -156,6 +213,24 @@ jobs:
         with:
           name: 3d-${{ github.sha }}
           path: output/3d/
+          if-no-files-found: warn
+
+      # ── Test points ───────────────────────────────────────────────────────
+      - name: Upload — Test points
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: testpoints-${{ github.sha }}
+          path: output/testpoints/
+          if-no-files-found: warn
+
+      # ── KiCanvas source files ─────────────────────────────────────────────
+      - name: Upload — Source (for KiCanvas viewer)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-${{ github.sha }}
+          path: output/source/
           if-no-files-found: warn
 
 # ── Release ───────────────────────────────────────────────────────────────────
@@ -178,28 +253,23 @@ jobs:
           path: release-assets/
           merge-multiple: false
 
-      # Re-zip each category for clean release attachment
       - name: Package release assets
         run: |
-          TAG="${GITHUB_REF_NAME}"
           cd release-assets
           for dir in */; do
             category="${dir%/}"
-            # strip the sha suffix for human-readable names
             name=$(echo "$category" | sed "s/-${{ github.sha }}//")
             zip -r "${name}.zip" "$category/"
           done
           ls -lh *.zip
 
       - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release-assets/*.zip
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          gh release create "$TAG" \
-            --title "Release $TAG" \
-            --generate-notes \
-            release-assets/*.zip
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
   pages:
@@ -251,16 +321,30 @@ jobs:
           name: 3d-${{ github.sha }}
           path: site/3d/
 
+      - name: Download test points
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: testpoints-${{ github.sha }}
+          path: site/testpoints/
+
+      - name: Download KiCanvas source
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: source-${{ github.sha }}
+          path: site/source/
+
       - name: Download ERC report
         uses: actions/download-artifact@v4
-        if: always()
+        continue-on-error: true
         with:
           name: erc-report
           path: site/reports/erc/
 
       - name: Download DRC report
         uses: actions/download-artifact@v4
-        if: always()
+        continue-on-error: true
         with:
           name: drc-report
           path: site/reports/drc/
@@ -270,6 +354,7 @@ jobs:
           ERC_STATUS: ${{ needs.erc.result }}
           DRC_STATUS: ${{ needs.drc.result }}
           SITE_DIR: site
+          BOARD_VARIANT: ${{ env.BOARD_VARIANT }}
         run: scripts/gen-pages.sh
 
       - name: Upload Pages artifact
