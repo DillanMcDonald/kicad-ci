@@ -698,6 +698,9 @@ _log(f"Generated: {output_path} ({len(page)} bytes)")
 # ────────────────────────────────────────────────────────────
 if VRML_FILE:
     vrml_url_for_viewer = json.dumps(_url(VRML_FILE))
+    # Use ES module imports — Three.js jsm/loaders/VRMLLoader.js bundles
+    # chevrotain via relative import. Classic examples/js/* needs chevrotain
+    # loaded externally first or it silently fails (CstParser at top-level).
     viewer_html = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -712,106 +715,98 @@ html, body {{ margin: 0; height: 100%; overflow: hidden; background: #1a1a2e; co
         font-size: .95rem; pointer-events: none; text-align: center; line-height: 1.5; }}
 canvas {{ display: block; }}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/VRMLLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script type="importmap">
+{{
+  "imports": {{
+    "three": "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.147.0/examples/jsm/"
+  }}
+}}
+</script>
 </head>
 <body>
 <div id="viewer"><div id="msg">Loading 3D model...</div></div>
-<script>
-(function() {{
-  var VRML_URL = {vrml_url_for_viewer};
-  var container = document.getElementById('viewer');
-  var msg = document.getElementById('msg');
+<script type="module">
+import * as THREE from 'three';
+import {{ VRMLLoader }} from 'three/addons/loaders/VRMLLoader.js';
+import {{ OrbitControls }} from 'three/addons/controls/OrbitControls.js';
 
-  if (typeof THREE === 'undefined') {{
-    msg.textContent = 'Three.js failed to load from CDN';
-    return;
-  }}
-  if (!THREE.VRMLLoader) {{
-    msg.textContent = 'VRMLLoader not available';
-    return;
-  }}
-  if (!THREE.OrbitControls) {{
-    msg.textContent = 'OrbitControls not available';
-    return;
-  }}
+const VRML_URL = {vrml_url_for_viewer};
+const container = document.getElementById('viewer');
+const msg = document.getElementById('msg');
 
-  var w = window.innerWidth, h = window.innerHeight;
-  var scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1a1a2e);
+const w = window.innerWidth, h = window.innerHeight;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
 
-  var camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100000);
-  camera.position.set(100, 100, 150);
-  camera.up.set(0, 0, 1);
+const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100000);
+camera.position.set(100, 100, 150);
+camera.up.set(0, 0, 1);
 
-  var renderer = new THREE.WebGLRenderer({{ antialias: true }});
-  renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setSize(w, h);
-  container.appendChild(renderer.domElement);
+const renderer = new THREE.WebGLRenderer({{ antialias: true }});
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(w, h);
+container.appendChild(renderer.domElement);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-  var d1 = new THREE.DirectionalLight(0xffffff, 0.7);
-  d1.position.set(1, 1, 1).normalize();
-  scene.add(d1);
-  var d2 = new THREE.DirectionalLight(0xffffff, 0.4);
-  d2.position.set(-1, -0.5, -0.7).normalize();
-  scene.add(d2);
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const d1 = new THREE.DirectionalLight(0xffffff, 0.7);
+d1.position.set(1, 1, 1).normalize();
+scene.add(d1);
+const d2 = new THREE.DirectionalLight(0xffffff, 0.4);
+d2.position.set(-1, -0.5, -0.7).normalize();
+scene.add(d2);
 
-  var controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.1;
-  controls.screenSpacePanning = true;
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.1;
+controls.screenSpacePanning = true;
 
-  new THREE.VRMLLoader().load(
-    VRML_URL,
-    function(obj) {{
-      msg.remove();
-      try {{
-        var box = new THREE.Box3().setFromObject(obj);
-        var center = box.getCenter(new THREE.Vector3());
-        var size = box.getSize(new THREE.Vector3());
-        obj.position.sub(center);
-        scene.add(obj);
-        var maxDim = Math.max(size.x, size.y, size.z);
-        if (maxDim > 0 && isFinite(maxDim)) {{
-          var dist = maxDim / (2 * Math.tan(Math.PI * camera.fov / 360)) * 1.6;
-          camera.position.set(dist * 0.6, dist * 0.6, dist * 0.8);
-        }}
-        camera.lookAt(0, 0, 0);
-        controls.target.set(0, 0, 0);
-        controls.update();
-      }} catch(e) {{
-        console.error('VRML post-load error:', e);
+new VRMLLoader().load(
+  VRML_URL,
+  obj => {{
+    msg.remove();
+    try {{
+      const box = new THREE.Box3().setFromObject(obj);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      obj.position.sub(center);
+      scene.add(obj);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      if (maxDim > 0 && isFinite(maxDim)) {{
+        const dist = maxDim / (2 * Math.tan(Math.PI * camera.fov / 360)) * 1.6;
+        camera.position.set(dist * 0.6, dist * 0.6, dist * 0.8);
       }}
-    }},
-    function(xhr) {{
-      if (xhr.total > 0) {{
-        var pct = Math.round(xhr.loaded / xhr.total * 100);
-        msg.textContent = 'Loading 3D model... ' + pct + '%';
-      }} else {{
-        msg.textContent = 'Loading 3D model... (' + Math.round(xhr.loaded / 1024) + ' KB)';
-      }}
-    }},
-    function(err) {{
-      console.error('VRML load error:', err);
-      msg.innerHTML = 'Failed to load VRML<br><span style="font-size:.8em;opacity:.7;">' +
-                      (err && err.message ? err.message : 'unknown error') + '</span>';
+      camera.lookAt(0, 0, 0);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }} catch(e) {{
+      console.error('VRML post-load error:', e);
     }}
-  );
+  }},
+  xhr => {{
+    if (xhr.total > 0) {{
+      msg.textContent = 'Loading 3D model... ' + Math.round(xhr.loaded / xhr.total * 100) + '%';
+    }} else {{
+      msg.textContent = 'Loading 3D model... (' + Math.round(xhr.loaded / 1024) + ' KB)';
+    }}
+  }},
+  err => {{
+    console.error('VRML load error:', err);
+    msg.innerHTML = 'Failed to load VRML<br><span style="font-size:.8em;opacity:.7;">' +
+                    (err && err.message ? err.message : 'unknown error') + '</span>';
+  }}
+);
 
-  window.addEventListener('resize', function() {{
-    var w2 = window.innerWidth, h2 = window.innerHeight;
-    renderer.setSize(w2, h2);
-    camera.aspect = w2 / h2;
-    camera.updateProjectionMatrix();
-  }});
+window.addEventListener('resize', () => {{
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+}});
 
-  (function animate() {{
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }})();
+(function animate() {{
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
 }})();
 </script>
 </body>
