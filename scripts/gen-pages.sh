@@ -8,8 +8,8 @@
 # This implementation is original — no code from KiBot (AGPL-3.0) is used.
 #
 # Architecture: tab-based interactive review tool.
-#   PCB tab:     KiCanvas <kc-board> — pan/zoom/layers
-#   Schematic:   KiCanvas <kc-schematic> — pan/zoom/sheets
+#   PCB tab:     KiCanvas <kicanvas-embed> — pan/zoom/layers
+#   Schematic:   KiCanvas <kicanvas-embed> — pan/zoom/sheets
 #   BOM tab:     iBoM full-height or CSV table fallback
 #   3D tab:      render images with top/bottom toggle
 #   Fabrication: inline SVG + file list
@@ -212,7 +212,7 @@ vbadge = f'<span class="variant-badge variant-{variant}">{variant}</span>' if va
 
 # PCB tab content
 if kc_pcb:
-    pcb_tab = f'''<div class="viewer-wrap"><kc-board src="{kc_pcb}"></kc-board></div>
+    pcb_tab = f'''<div class="viewer-wrap"><kicanvas-embed src="{kc_pcb}" controls="full"></kicanvas-embed></div>
 <div class="viewer-hint">Pan: click+drag &middot; Zoom: scroll &middot; Select: click component &middot; Layers: right panel</div>'''
 elif preview_front:
     pcb_tab = f'''<div class="panel-pad"><div class="board-previews">
@@ -224,7 +224,7 @@ else:
 
 # Schematic tab
 if kc_sch:
-    sch_tab = f'''<div class="viewer-wrap"><kc-schematic src="{kc_sch}"></kc-schematic></div>
+    sch_tab = f'''<div class="viewer-wrap"><kicanvas-embed src="{kc_sch}" controls="full"></kicanvas-embed></div>
 <div class="viewer-hint">Pan: click+drag &middot; Zoom: scroll &middot; Navigate sheets via top bar</div>'''
 else:
     sch_tab = '<div class="viewer-wrap"><div class="viewer-empty">No schematic source file available</div></div>'
@@ -335,7 +335,7 @@ a{{color:var(--accent);text-decoration:none}}a:hover{{text-decoration:underline}
 .tab-panel{{display:none}}.tab-panel.active{{display:block}}
 .panel-pad{{padding:24px}}
 .viewer-wrap{{width:100%;height:calc(100vh - 180px);min-height:500px;border-bottom:1px solid var(--border);overflow:hidden;background:#1a1a2e}}
-.viewer-wrap kc-board,.viewer-wrap kc-schematic{{width:100%;height:100%;display:block}}
+.viewer-wrap kicanvas-embed{{width:100%;height:100%;display:block}}
 .viewer-empty{{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text2);font-size:1rem}}
 .viewer-hint{{padding:8px 16px;font-size:.78rem;color:var(--text2);background:var(--bg2);border-bottom:1px solid var(--border)}}
 .render-gallery{{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}}
