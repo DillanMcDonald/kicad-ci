@@ -121,13 +121,13 @@ mkdir -p "$PREVIEW_DIR"
 info "[5/9] Board SVG — front → $PREVIEW_DIR/board-front.svg"
 "$KICAD_CLI" pcb export svg \
   --output        "$PREVIEW_DIR/board-front.svg" \
-  --layers        "F.Cu,F.Fab,F.SilkS,Edge.Cuts" \
+  --layers        "F.Cu,F.Paste,F.Mask,F.SilkS,F.Fab,Edge.Cuts" \
   "$PCB" || warn "Board SVG (front) failed — skipping"
 
 info "[5/9] Board SVG — back → $PREVIEW_DIR/board-back.svg"
 "$KICAD_CLI" pcb export svg \
   --output        "$PREVIEW_DIR/board-back.svg" \
-  --layers        "B.Cu,B.Fab,B.SilkS,Edge.Cuts" \
+  --layers        "B.Cu,B.Paste,B.Mask,B.SilkS,B.Fab,Edge.Cuts" \
   "$PCB" || warn "Board SVG (back) failed — skipping"
 
 # ─────────────────────────────────────────────────────────────────────────────
