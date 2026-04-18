@@ -198,31 +198,25 @@ else
     apt-get update -qq 2>&1 >/dev/null && apt-get install -y -qq xvfb 2>&1 >/dev/null || \
       warn "Could not install xvfb — renders will likely fail"
   fi
-  XVFB=""
-  command -v xvfb-run &>/dev/null && XVFB="xvfb-run -a --server-args=-screen 0 1920x1080x24"
+  _render() {
+    local out="$1" side="$2" rotate="${3:-}"
+    local args=(--output "$out" --side "$side" --quality high)
+    [[ -n "$rotate" ]] && args+=(--rotate "$rotate")
+    if command -v xvfb-run &>/dev/null; then
+      xvfb-run -a "$KICAD_CLI" pcb render "${args[@]}" "$PCB"
+    else
+      "$KICAD_CLI" pcb render "${args[@]}" "$PCB"
+    fi
+  }
 
   info "[8/9] 3D render — top → $THREED_DIR/render-top.png"
-  $XVFB "$KICAD_CLI" pcb render \
-    --output  "$THREED_DIR/render-top.png" \
-    --side    top \
-    --quality high \
-    "$PCB" || warn "3D render (top) failed"
+  _render "$THREED_DIR/render-top.png" top || warn "3D render (top) failed"
 
   info "[8/9] 3D render — bottom → $THREED_DIR/render-bottom.png"
-  $XVFB "$KICAD_CLI" pcb render \
-    --output  "$THREED_DIR/render-bottom.png" \
-    --side    bottom \
-    --quality high \
-    "$PCB" || warn "3D render (bottom) failed"
+  _render "$THREED_DIR/render-bottom.png" bottom || warn "3D render (bottom) failed"
 
-  # Angled render — pan/tilt/roll format: "pan,tilt,roll" in degrees
   info "[8/9] 3D render — angled top → $THREED_DIR/render-angled-top.png"
-  $XVFB "$KICAD_CLI" pcb render \
-    --output  "$THREED_DIR/render-angled-top.png" \
-    --side    top \
-    --rotate  "0,0,30" \
-    --quality high \
-    "$PCB" || warn "Angled render failed — skipping"
+  _render "$THREED_DIR/render-angled-top.png" top "0,0,30" || warn "Angled render failed"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
