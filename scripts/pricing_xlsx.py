@@ -169,7 +169,15 @@ def read_bom_csv(path: Path, exclude_dnp: bool = True) -> List[BomLine]:
                     return ""
                 return row[idx].strip()
 
-            mpn  = _cell(mpn_col)
+            mpn = _cell(mpn_col)
+            # Fallback: if no MPN field, try Value (many KiCad projects put
+            # the part number there directly — e.g. Value="SMBJ5.0A-TR").
+            # Only use Value if it looks like an MPN: >= 4 chars and has a
+            # digit or dash (skips generic values like "10k", "100uF").
+            if (not mpn or mpn.lower() in ("", "?", "~", "n/a", "tbd")):
+                val = _cell(val_col)
+                if val and len(val) >= 4 and any(c.isdigit() or c == '-' for c in val):
+                    mpn = val
             if not mpn or mpn.lower() in ("", "?", "~", "n/a", "tbd"):
                 continue
 
