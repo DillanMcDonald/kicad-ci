@@ -89,8 +89,14 @@ class DigiKeyClient(DistributorClient):
                 },
                 timeout=15,
             )
-            resp.raise_for_status()
-        except requests.RequestException:
+            if resp.status_code != 200:
+                import sys
+                body_preview = resp.text[:200].replace("\n", " ")
+                print(f"DigiKey token error: HTTP {resp.status_code} — {body_preview}", file=sys.stderr)
+                return None
+        except requests.RequestException as e:
+            import sys
+            print(f"DigiKey token request failed: {e}", file=sys.stderr)
             return None
 
         data = resp.json()
@@ -143,11 +149,17 @@ class DigiKeyClient(DistributorClient):
                     continue
                 if resp.status_code == 404:
                     return None
-                resp.raise_for_status()
+                if resp.status_code != 200:
+                    import sys
+                    print(f"DigiKey search '{mpn}' error: HTTP {resp.status_code} — "
+                          f"{resp.text[:200].replace(chr(10), ' ')}", file=sys.stderr)
+                    return None
                 raw = resp.json()
                 break
-            except requests.RequestException:
+            except requests.RequestException as e:
                 if attempt == _MAX_RETRIES - 1:
+                    import sys
+                    print(f"DigiKey search '{mpn}' failed: {e}", file=sys.stderr)
                     return None
                 time.sleep(2 ** attempt)
         else:
