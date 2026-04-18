@@ -73,11 +73,41 @@ def _build_injection(pricing_data: dict) -> str:
     return '$' + Number(p).toFixed(4);
   }}
 
+  // Find index of the Value column header so we can insert
+  // Price / Buy right after it (more visible than appending at end,
+  // which gets clipped by iBoM's scrollable BOM panel).
+  function findValueColumnIndex() {{
+    const head = document.getElementById('bomhead');
+    if (!head) return -1;
+    const ths = head.querySelectorAll('th');
+    for (let i = 0; i < ths.length; i++) {{
+      const t = (ths[i].textContent || '').trim().toLowerCase();
+      if (t === 'value') return i;
+    }}
+    return -1;
+  }}
+
+  function valueColumnIndexForRow(row) {{
+    // Mirror header lookup for row cells (so we know where to look up MPN)
+    const idx = findValueColumnIndex();
+    return idx >= 0 ? idx : 4;  // fallback to typical position
+  }}
+
+  function lookupByValueCell(row) {{
+    const idx = valueColumnIndexForRow(row);
+    if (idx < row.cells.length) {{
+      const v = (row.cells[idx].textContent || '').trim();
+      if (v && parts[v]) return parts[v];
+    }}
+    return null;
+  }}
+
   function addHeaders() {{
     const head = document.getElementById('bomhead');
     if (!head) return false;
     const headerRow = head.querySelector('tr') || head;
     if (headerRow.dataset.kcciHeaders) return true;
+    const valueIdx = findValueColumnIndex();
     const thPrice = document.createElement('th');
     thPrice.textContent = 'Price';
     thPrice.className = 'kcci-col';
@@ -85,8 +115,15 @@ def _build_injection(pricing_data: dict) -> str:
     const thBuy = document.createElement('th');
     thBuy.textContent = 'Buy';
     thBuy.className = 'kcci-col';
-    headerRow.appendChild(thPrice);
-    headerRow.appendChild(thBuy);
+    if (valueIdx >= 0 && valueIdx + 1 < headerRow.cells.length) {{
+      // Insert AFTER Value column
+      const refTh = headerRow.cells[valueIdx + 1];
+      headerRow.insertBefore(thPrice, refTh);
+      headerRow.insertBefore(thBuy, refTh);
+    }} else {{
+      headerRow.appendChild(thPrice);
+      headerRow.appendChild(thBuy);
+    }}
     headerRow.dataset.kcciHeaders = '1';
     return true;
   }}
@@ -94,11 +131,18 @@ def _build_injection(pricing_data: dict) -> str:
   function augmentRows() {{
     const body = document.getElementById('bombody');
     if (!body) return;
+    const valueIdx = findValueColumnIndex();
+    // Insert position for cells: just after the Value cell.
+    // row.insertCell(N) inserts at index N (pushing existing N+ to right).
+    const insertIdx = valueIdx >= 0 ? valueIdx + 1 : -1;
     for (const row of body.rows) {{
       if (row.dataset.kcciAugmented) continue;
-      const data = lookupForRow(row);
-      const tdPrice = row.insertCell(-1);
-      const tdBuy = row.insertCell(-1);
+      // Look up using ORIGINAL Value cell (before we insert anything)
+      const data = (insertIdx >= 0 && insertIdx - 1 < row.cells.length)
+        ? (parts[(row.cells[insertIdx - 1].textContent || '').trim()] || null)
+        : lookupByValueCell(row);
+      const tdPrice = row.insertCell(insertIdx >= 0 ? insertIdx : -1);
+      const tdBuy = row.insertCell(insertIdx >= 0 ? insertIdx + 1 : -1);
       tdPrice.className = 'kcci-col';
       tdBuy.className = 'kcci-col kcci-col-buy';
       if (data && data.best_price != null) {{
