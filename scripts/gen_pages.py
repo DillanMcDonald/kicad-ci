@@ -275,14 +275,17 @@ def tab_sch():
 
 def tab_bom():
     if HAS_IBOM:
+        # Lazy load: use data-src, swap to src when tab is activated.
+        # iBoM measures its container at load time — loading while hidden
+        # (display:none) gives it 0-dimension measurements and breaks layout.
         return (
             '<div class="bom-toolbar">'
-            '<span class="subnote">Interactive BOM &mdash; click a component row to highlight on board, hover for details.</span>'
+            '<span class="subnote">Interactive BOM &mdash; click row to highlight on board, click pad to highlight row.</span>'
             '<a class="bom-openbtn" href="assembly/ibom.html" target="_blank" rel="noopener">'
             'Open in new tab &nbsp;&#8599;</a>'
             '</div>'
-            '<iframe class="ibom-frame" src="assembly/ibom.html" '
-            'title="Interactive BOM" allowfullscreen loading="eager"></iframe>'
+            '<iframe class="ibom-frame" data-src="assembly/ibom.html" '
+            'title="Interactive BOM" allowfullscreen></iframe>'
         )
     return (
         '<div class="panel-pad">'
@@ -298,9 +301,10 @@ def tab_3d():
         step_link = ""
         if STEP_FILE:
             step_link = f' &middot; <a href="{_url(STEP_FILE)}" download>Download STEP</a>'
-        # Iframe into a standalone Three.js viewer page — isolates canvas
-        # sizing from tab-switching, and keeps CDN script load-order simple.
-        return f'''<iframe class="viewer-3d-frame" src="3d-viewer.html" title="3D Model Viewer" allowfullscreen></iframe>
+        # Iframe into a standalone Three.js viewer page. Lazy-load via data-src
+        # so the Three.js canvas gets correct dimensions when the tab is
+        # first activated, not while hidden.
+        return f'''<iframe class="viewer-3d-frame" data-src="3d-viewer.html" title="3D Model Viewer" allowfullscreen></iframe>
 <div class="viewer-hint">Orbit: left-click+drag &middot; Pan: right-click+drag &middot; Zoom: scroll
 &middot; <a href="{_url(VRML_FILE)}" download>Download VRML</a>{step_link}
 &middot; <a href="3d-viewer.html" target="_blank" rel="noopener">Open in new tab &#8599;</a></div>'''
@@ -438,7 +442,7 @@ code{background:var(--bg3);padding:1px 6px;border-radius:3px;font-size:.85em}
 .tab-btn:hover{color:var(--text)}
 .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
 .tab-btn .tab-count{font-size:.7rem;font-weight:400;background:var(--bg3);padding:1px 6px;border-radius:8px;margin-left:6px}
-.tab-panel{display:none}
+.tab-panel{display:none;position:relative}
 .tab-panel.active{display:block}
 .panel-pad{padding:24px}
 
@@ -523,6 +527,15 @@ themeBtn.addEventListener('click', function(){
 });
 
 // ── Tabs ───────────────────────────────────────────────
+function activateLazyIframes(panel) {
+  // Swap data-src → src the first time a tab becomes visible.
+  // Prevents iBoM / Three.js canvas measuring 0 dimensions while hidden.
+  panel.querySelectorAll('iframe[data-src]').forEach(function(f){
+    var src = f.getAttribute('data-src');
+    f.removeAttribute('data-src');
+    f.setAttribute('src', src);
+  });
+}
 function showTab(name) {
   var targetId = 'tab-' + name;
   var found = false;
@@ -532,10 +545,17 @@ function showTab(name) {
     if (on) found = true;
   });
   document.querySelectorAll('.tab-panel').forEach(function(p){
-    p.classList.toggle('active', p.id === targetId);
+    var active = p.id === targetId;
+    p.classList.toggle('active', active);
+    if (active) activateLazyIframes(p);
   });
   return found;
 }
+// If an already-active tab (e.g., default or via hash) has lazy iframes,
+// activate them on page load.
+window.addEventListener('DOMContentLoaded', function(){
+  document.querySelectorAll('.tab-panel.active').forEach(activateLazyIframes);
+});
 document.querySelectorAll('.tab-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
     var tab = this.getAttribute('data-tab').replace('tab-', '');
