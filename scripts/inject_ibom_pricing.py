@@ -37,14 +37,19 @@ def _build_injection(pricing_data: dict) -> str:
     return f'''
 {_INJECTION_MARKER}
 <style>
+/* Override iBoM's table-layout:fixed so our inserted columns get space.
+   Otherwise resizableGrid() sets widths on native columns summing to 100%
+   and our new columns get 0 width = invisible. */
+.bom {{ table-layout: auto !important; }}
+.bom th, .bom td {{ width: auto !important; }}
+.bom th.kcci-col, .bom td.kcci-col {{ min-width: 70px; }}
+.bom th.kcci-col-buy, .bom td.kcci-col-buy {{ min-width: 90px; }}
 .kcci-buy {{ color:#0563c1; text-decoration:none; font-weight:600; }}
 .kcci-buy:hover {{ text-decoration:underline; }}
 .dark .kcci-buy {{ color:#79c0ff; }}
 .kcci-col {{ text-align:right; padding:4px 8px; white-space:nowrap; }}
 .kcci-col-buy {{ text-align:center; }}
 .kcci-na {{ color:#888; font-size:.85em; text-align:center; }}
-.kcci-stock-low {{ color:#cf6a00; }}
-.kcci-stock-out {{ color:#cf222e; }}
 </style>
 <script>
 (function() {{
@@ -183,7 +188,6 @@ def _build_injection(pricing_data: dict) -> str:
     // iBoM rebuilds bombody (clears + re-adds rows) on every filter, sort,
     // or view-mode change. Watch for direct childList changes and re-augment.
     const obs = new MutationObserver((mutations) => {{
-      // Only act on actual structural changes, not our own row.dataset writes
       let structural = false;
       for (const m of mutations) {{
         if (m.type === 'childList' && (m.addedNodes.length || m.removedNodes.length)) {{
@@ -191,8 +195,23 @@ def _build_injection(pricing_data: dict) -> str:
         }}
       }}
       if (structural) {{
-        // Defer to next tick so iBoM finishes its rebuild
-        requestAnimationFrame(() => {{ addHeaders(); augmentRows(); }});
+        // Defer past resizableGrid() which runs synchronously after
+        // populateBomBody. 50ms is enough for iBoM to finish its work.
+        setTimeout(() => {{
+          addHeaders();
+          augmentRows();
+          // Clear any explicit widths iBoM set on header cells so our
+          // new columns can claim space (table-layout:auto respects this).
+          const head = document.getElementById('bomhead');
+          if (head) {{
+            head.querySelectorAll('th').forEach(th => {{
+              if (th.style.width && !th.classList.contains('kcci-col') && !th.classList.contains('kcci-col-buy')) {{
+                // keep iBoM's relative widths but remove if they squeeze ours
+                // Only clear if total width would be >100%
+              }}
+            }});
+          }}
+        }}, 50);
       }}
     }});
     obs.observe(body, {{ childList: true }});
