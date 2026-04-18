@@ -30,32 +30,39 @@ _INJECTION_MARKER = "<!-- KCCI_PRICING_INJECTION -->"
 def _build_injection(pricing_data: dict) -> str:
     """Build the script + style block to inject into ibom.html."""
     pricing_json = json.dumps(pricing_data, separators=(",", ":"))
+    # NOTE: this script is injected at the end of ibom.html. It works by
+    # monkey-patching iBoM's populateBomBody() function so our two columns
+    # get re-added every time iBoM rebuilds the BOM body (filter/sort/view
+    # changes). Headers are added once to the bomhead row.
     return f'''
 {_INJECTION_MARKER}
 <style>
 .kcci-buy {{ color:#0563c1; text-decoration:none; font-weight:600; }}
 .kcci-buy:hover {{ text-decoration:underline; }}
 .dark .kcci-buy {{ color:#79c0ff; }}
-th.kcci-col, td.kcci-col {{ text-align:right; padding:4px 8px; white-space:nowrap; }}
-td.kcci-col-buy {{ text-align:center; }}
-td.kcci-na {{ color:#888; font-size:.85em; }}
+.kcci-col {{ text-align:right; padding:4px 8px; white-space:nowrap; }}
+.kcci-col-buy {{ text-align:center; }}
+.kcci-na {{ color:#888; font-size:.85em; text-align:center; }}
+.kcci-stock-low {{ color:#cf6a00; }}
+.kcci-stock-out {{ color:#cf222e; }}
 </style>
 <script>
 (function() {{
-  const KCCI_PRICING = {pricing_json};
-  const parts = KCCI_PRICING.parts || {{}};
+  window.KCCI_PRICING = {pricing_json};
+  const parts = window.KCCI_PRICING.parts || {{}};
 
-  function lookupPart(row) {{
-    // Try multiple field positions to find an MPN. iBoM rows have
-    // various column order depending on settings, so check all cells.
-    const cells = row.querySelectorAll('td');
-    for (const cell of cells) {{
+  function lookupForRow(row) {{
+    // iBoM's row column order: # | refs | value | footprint | qty | (extras)
+    // We search every cell text + every comma-separated value for an MPN.
+    for (const cell of row.cells) {{
       const txt = (cell.textContent || '').trim();
-      if (txt && parts[txt]) return parts[txt];
-      // Comma-separated values
-      for (const v of txt.split(',')) {{
-        const trimmed = v.trim();
-        if (trimmed && parts[trimmed]) return parts[trimmed];
+      if (!txt) continue;
+      if (parts[txt]) return parts[txt];
+      if (txt.includes(',')) {{
+        for (const v of txt.split(',')) {{
+          const t = v.trim();
+          if (t && parts[t]) return parts[t];
+        }}
       }}
     }}
     return null;
@@ -66,83 +73,96 @@ td.kcci-na {{ color:#888; font-size:.85em; }}
     return '$' + Number(p).toFixed(4);
   }}
 
-  function augment() {{
-    const tables = document.querySelectorAll('#bomtable, table.bom');
-    if (!tables.length) return false;
-    let added = false;
-    tables.forEach(table => {{
-      if (table.dataset.kcciAugmented) return;
-      const headerRow = table.querySelector('thead tr, tr');
-      if (!headerRow) return;
-      // Insert headers
-      const thPrice = document.createElement('th');
-      thPrice.textContent = 'Best Price';
-      thPrice.className = 'kcci-col';
-      const thBuy = document.createElement('th');
-      thBuy.textContent = 'Buy';
-      thBuy.className = 'kcci-col';
-      headerRow.appendChild(thPrice);
-      headerRow.appendChild(thBuy);
-
-      // Iterate body rows
-      const bodyRows = table.querySelectorAll('tbody tr');
-      bodyRows.forEach(row => {{
-        const data = lookupPart(row);
-        const tdPrice = document.createElement('td');
-        const tdBuy = document.createElement('td');
-        tdPrice.className = 'kcci-col';
-        tdBuy.className = 'kcci-col kcci-col-buy';
-        if (data && data.best_price != null) {{
-          tdPrice.textContent = fmtPrice(data.best_price);
-          tdPrice.title = 'Best price across ' + Object.keys(data.prices || {{}}).join(', ');
-          if (data.buy_url) {{
-            const a = document.createElement('a');
-            a.href = data.buy_url;
-            a.target = '_blank';
-            a.rel = 'noopener';
-            a.className = 'kcci-buy';
-            a.textContent = (data.best_distributor || 'Buy') + ' »';
-            tdBuy.appendChild(a);
-          }} else {{
-            tdBuy.textContent = data.best_distributor || '';
-          }}
-        }} else {{
-          tdPrice.className += ' kcci-na';
-          tdPrice.textContent = '—';
-          tdBuy.className += ' kcci-na';
-          tdBuy.textContent = '—';
-        }}
-        row.appendChild(tdPrice);
-        row.appendChild(tdBuy);
-      }});
-
-      table.dataset.kcciAugmented = '1';
-      added = true;
-    }});
-    return added;
+  function addHeaders() {{
+    const head = document.getElementById('bomhead');
+    if (!head) return false;
+    const headerRow = head.querySelector('tr') || head;
+    if (headerRow.dataset.kcciHeaders) return true;
+    const thPrice = document.createElement('th');
+    thPrice.textContent = 'Price';
+    thPrice.className = 'kcci-col';
+    thPrice.title = 'Best unit price across configured distributors';
+    const thBuy = document.createElement('th');
+    thBuy.textContent = 'Buy';
+    thBuy.className = 'kcci-col';
+    headerRow.appendChild(thPrice);
+    headerRow.appendChild(thBuy);
+    headerRow.dataset.kcciHeaders = '1';
+    return true;
   }}
 
-  function startWhenReady() {{
-    if (augment()) return;
-    // iBoM populates the BOM table asynchronously; poll briefly.
+  function augmentRows() {{
+    const body = document.getElementById('bombody');
+    if (!body) return;
+    for (const row of body.rows) {{
+      if (row.dataset.kcciAugmented) continue;
+      const data = lookupForRow(row);
+      const tdPrice = row.insertCell(-1);
+      const tdBuy = row.insertCell(-1);
+      tdPrice.className = 'kcci-col';
+      tdBuy.className = 'kcci-col kcci-col-buy';
+      if (data && data.best_price != null) {{
+        tdPrice.textContent = fmtPrice(data.best_price);
+        const distList = Object.keys(data.prices || {{}}).join(', ');
+        tdPrice.title = 'Best across: ' + distList +
+          (data.stock != null ? ' | Stock: ' + data.stock : '');
+        if (data.buy_url) {{
+          const a = document.createElement('a');
+          a.href = data.buy_url;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.className = 'kcci-buy';
+          a.textContent = (data.best_distributor || 'Buy') + ' »';
+          a.onclick = function(e) {{ e.stopPropagation(); }};
+          tdBuy.appendChild(a);
+        }} else {{
+          tdBuy.textContent = data.best_distributor || '';
+        }}
+      }} else {{
+        tdPrice.textContent = '—';
+        tdPrice.className += ' kcci-na';
+        tdBuy.textContent = '—';
+        tdBuy.className += ' kcci-na';
+      }}
+      row.dataset.kcciAugmented = '1';
+    }}
+  }}
+
+  function setup() {{
+    addHeaders();
+    augmentRows();
+
+    // iBoM rebuilds bombody on every view/filter change. Wrap its
+    // populateBomBody so we re-augment after each rebuild.
+    if (typeof window.populateBomBody === 'function' && !window.populateBomBody.__kcciWrapped) {{
+      const orig = window.populateBomBody;
+      window.populateBomBody = function() {{
+        const r = orig.apply(this, arguments);
+        // Defer slightly so iBoM finishes its async work
+        setTimeout(() => {{ addHeaders(); augmentRows(); }}, 0);
+        return r;
+      }};
+      window.populateBomBody.__kcciWrapped = true;
+    }}
+  }}
+
+  function start() {{
+    // Try immediately, then poll briefly until bombody exists.
+    setup();
+    const body = document.getElementById('bombody');
+    if (body && body.rows.length > 0) return;
     let tries = 0;
     const iv = setInterval(() => {{
-      if (augment() || ++tries > 60) clearInterval(iv);
-    }}, 200);
-    // Also rebuild when iBoM re-renders (e.g., view mode change)
-    const obs = new MutationObserver(() => {{
-      const tables = document.querySelectorAll('#bomtable, table.bom');
-      tables.forEach(t => {{
-        if (!t.dataset.kcciAugmented) augment();
-      }});
-    }});
-    obs.observe(document.body, {{ childList: true, subtree: true }});
+      setup();
+      const b = document.getElementById('bombody');
+      if ((b && b.rows.length > 0) || ++tries > 100) clearInterval(iv);
+    }}, 100);
   }}
 
   if (document.readyState === 'loading') {{
-    document.addEventListener('DOMContentLoaded', startWhenReady);
+    document.addEventListener('DOMContentLoaded', start);
   }} else {{
-    startWhenReady();
+    start();
   }}
 }})();
 </script>
