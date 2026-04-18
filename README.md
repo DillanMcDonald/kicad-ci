@@ -175,6 +175,20 @@ ${KIPRJMOD}/MyLib/MyLib.kicad_sym
 
 ---
 
+## Distributor pricing (optional)
+
+Add these repo secrets in **Settings → Secrets and variables → Actions** to enable live distributor pricing. Pricing XLSX is generated automatically and download link appears on the BOM tab.
+
+| Secret | Required for |
+|--------|-------------|
+| `DIGIKEY_CLIENT_ID` + `DIGIKEY_CLIENT_SECRET` | DigiKey Product Search v4 (OAuth2) — [register here](https://developer.digikey.com/) |
+| `MOUSER_API_KEY` | Mouser Search API — [register here](https://www.mouser.com/api-hub/) |
+| `NEXAR_CLIENT_ID` + `NEXAR_CLIENT_SECRET` | Octopart/Nexar (covers 1000+ distributors) — [register here](https://nexar.com/api) |
+
+**No secrets = no pricing step**, pipeline still runs. **JLCPCB is always included** (uses bundled price DB, no auth).
+
+---
+
 ## License audit
 
 | Tool | License | Role |

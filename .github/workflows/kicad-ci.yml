@@ -166,6 +166,21 @@ jobs:
         run: scripts/ibom.sh
         continue-on-error: true
 
+      - name: Generate distributor pricing XLSX
+        # Skipped if NO distributor secrets are set. Requires at least one of:
+        #   DIGIKEY_CLIENT_ID + DIGIKEY_CLIENT_SECRET
+        #   MOUSER_API_KEY
+        #   NEXAR_CLIENT_ID + NEXAR_CLIENT_SECRET
+        # JLCPCB uses a bundled price DB (no auth needed).
+        env:
+          DIGIKEY_CLIENT_ID: ${{ secrets.DIGIKEY_CLIENT_ID }}
+          DIGIKEY_CLIENT_SECRET: ${{ secrets.DIGIKEY_CLIENT_SECRET }}
+          MOUSER_API_KEY: ${{ secrets.MOUSER_API_KEY }}
+          NEXAR_CLIENT_ID: ${{ secrets.NEXAR_CLIENT_ID }}
+          NEXAR_CLIENT_SECRET: ${{ secrets.NEXAR_CLIENT_SECRET }}
+        run: scripts/pricing.sh
+        continue-on-error: true
+
       - name: Extract test points
         run: |
           PCB=$(find "$PROJECT_DIR" -maxdepth 2 -name "*.kicad_pcb" \

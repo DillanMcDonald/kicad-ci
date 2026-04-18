@@ -94,6 +94,7 @@ RENDER_TOP = _find_first(["3d/render-top.png"])
 RENDER_BOTTOM = _find_first(["3d/render-bottom.png"])
 RENDER_ANGLED = _find_first(["3d/render-angled-top.png"])
 HAS_IBOM = os.path.isfile(os.path.join(SITE, "assembly", "ibom.html"))
+PRICING_XLSX = _find_first(["assembly/pricing.xlsx"])
 
 
 def count_files(subdir):
@@ -275,14 +276,21 @@ def tab_sch():
 
 def tab_bom():
     if HAS_IBOM:
-        # Lazy load: use data-src, swap to src when tab is activated.
-        # iBoM measures its container at load time — loading while hidden
-        # (display:none) gives it 0-dimension measurements and breaks layout.
+        pricing_btn = ""
+        if PRICING_XLSX:
+            pricing_btn = (
+                f'<a class="bom-openbtn" href="{_url(PRICING_XLSX)}" download '
+                'title="DigiKey/Mouser/Nexar/JLCPCB pricing — 4-sheet XLSX">'
+                'Pricing XLSX &nbsp;&darr;</a>'
+            )
         return (
             '<div class="bom-toolbar">'
             '<span class="subnote">Interactive BOM &mdash; click row to highlight on board, click pad to highlight row.</span>'
+            '<span class="bom-toolbar-actions">'
+            f'{pricing_btn}'
             '<a class="bom-openbtn" href="assembly/ibom.html" target="_blank" rel="noopener">'
             'Open in new tab &nbsp;&#8599;</a>'
+            '</span>'
             '</div>'
             '<iframe class="ibom-frame" data-src="assembly/ibom.html" '
             'title="Interactive BOM" allowfullscreen></iframe>'
@@ -504,6 +512,7 @@ code{background:var(--bg3);padding:1px 6px;border-radius:3px;font-size:.85em}
 
 .ibom-frame{width:100%;height:calc(100vh - 220px);min-height:600px;border:none;background:#1a1a2e;display:block}
 .bom-toolbar{display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--bg2);border-bottom:1px solid var(--border);justify-content:space-between;flex-wrap:wrap}
+.bom-toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
 .bom-openbtn{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);padding:4px 12px;font-size:.78rem;font-weight:600;text-decoration:none;white-space:nowrap}
 .bom-openbtn:hover{color:var(--accent);border-color:var(--accent);text-decoration:none}
 .viewer-3d-frame{width:100%;height:calc(100vh - 220px);min-height:500px;border:none;background:#1a1a2e;display:block}
