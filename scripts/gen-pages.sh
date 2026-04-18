@@ -232,35 +232,56 @@ if kc_sch:
 else:
     sch_tab = '<div class="viewer-wrap"><div class="viewer-empty">No schematic source file available</div></div>'
 
-# BOM tab
+# BOM tab — always iBoM iframe (interactive component highlighting).
+# Fall back to error message if generation failed. No static table fallback —
+# the user requires the iBoM interactive experience.
 if has_ibom:
-    bom_tab = '<iframe class="ibom-frame" src="assembly/ibom.html" title="Interactive BOM" loading="lazy"></iframe>'
-elif bom_html:
-    bom_tab = f'''<div class="panel-pad"><h3 style="color:var(--heading);margin-bottom:12px;">Bill of Materials</h3>
-<div class="bom-wrap"><table class="bom-table">{bom_html}</table></div></div>'''
+    bom_tab = '<iframe class="ibom-frame" src="assembly/ibom.html" title="Interactive BOM"></iframe>'
 else:
-    bom_tab = '<div class="panel-pad"><p style="color:var(--text2);">No BOM data available.</p></div>'
+    bom_tab = '''<div class="panel-pad">
+<h3 style="color:var(--heading);margin-bottom:12px;">Interactive BOM unavailable</h3>
+<p style="color:var(--text2);margin-bottom:12px;">
+InteractiveHtmlBom (iBoM) did not generate on this run. Check the CI logs
+for the <code>Generate Interactive BOM</code> step.
+</p>
+<p style="color:var(--text2);font-size:.85rem;">
+Common causes:
+</p>
+<ul style="color:var(--text2);font-size:.85rem;margin-left:20px;line-height:1.8;">
+<li>pip install failed (network/apt issue in container)</li>
+<li>Missing <code>wx</code>/Xvfb virtual display dependency</li>
+<li>PCB format incompatible with current InteractiveHtmlBom release</li>
+</ul>
+</div>'''
 
-# 3D tab — interactive viewer via Online3DViewer (MIT) + static render fallback
-# Build the absolute URL for the STEP file so 3dviewer.net can fetch it
-step_url = ""
-if step_file and repo_url:
-    # Derive GitHub Pages URL from repo URL
-    # https://github.com/owner/repo → https://owner.github.io/repo/
-    parts = repo_url.rstrip("/").split("/")
-    if len(parts) >= 2:
-        owner = parts[-2]
-        repo_name = parts[-1]
-        pages_base = f"https://{owner}.github.io/{repo_name}"
-        from urllib.parse import quote
-        step_url = f"{pages_base}/{quote(step_file)}"
-
+# 3D tab — interactive viewer via Online3DViewer (MIT) embedded JS library
+# The STEP file is served from the same origin — use a relative path.
 threed_viewer = ""
-if step_url:
-    viewer_url = f"https://3dviewer.net/#{quote('model')}={step_url}"
-    threed_viewer = f'''<iframe class="viewer-3d" src="{viewer_url}" title="3D Board Viewer" loading="lazy" allowfullscreen></iframe>
+if step_file:
+    # URL-encode path segments with spaces
+    from urllib.parse import quote
+    step_rel = "/".join(quote(p) for p in step_file.split("/"))
+    threed_viewer = f'''<div id="viewer-3d-container" class="viewer-3d"></div>
 <div class="viewer-hint">Orbit: left-click+drag &middot; Pan: right-click+drag &middot; Zoom: scroll &middot;
-<a href="{step_url}" download style="margin-left:8px;">Download STEP</a></div>'''
+<a href="{step_rel}" download style="margin-left:8px;">Download STEP</a></div>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/online-3d-viewer/build/engine/o3dv.min.js"></script>
+<script type="text/javascript">
+window.addEventListener('load', function() {{
+  var container = document.getElementById('viewer-3d-container');
+  if (!container || typeof OV === 'undefined') {{
+    if (container) container.innerHTML = '<div class="viewer-empty">Online3DViewer failed to load</div>';
+    return;
+  }}
+  var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  var bg = isDark ? new OV.RGBAColor(26, 26, 46, 255) : new OV.RGBAColor(255, 255, 255, 255);
+  var viewer = new OV.EmbeddedViewer(container, {{
+    backgroundColor: bg,
+    defaultColor: new OV.RGBColor(60, 130, 90),
+    edgeSettings: new OV.EdgeSettings(true, new OV.RGBColor(0, 0, 0), 1)
+  }});
+  viewer.LoadModelFromUrlList(['{step_rel}']);
+}});
+</script>'''
 
 # Static render fallback
 render_tabs_html = []
