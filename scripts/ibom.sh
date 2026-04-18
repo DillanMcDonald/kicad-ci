@@ -21,6 +21,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 PCB=$(require_pcb)
 IBOM_DIR="$OUTPUT_DIR/assembly"
 mkdir -p "$IBOM_DIR"
+IBOM_DIR_ABS="$(cd "$IBOM_DIR" && pwd)"
 
 info "Generating Interactive BOM: $PCB"
 
@@ -75,7 +76,7 @@ command -v xvfb-run &>/dev/null && XVFB_PREFIX="xvfb-run -a"
 
 $XVFB_PREFIX $IBOM_CMD \
   --no-browser \
-  --dest-dir "$IBOM_DIR" \
+  --dest-dir "$IBOM_DIR_ABS" \
   --name-format "ibom" \
   --dark-mode \
   --show-fabrication \
@@ -85,8 +86,16 @@ $XVFB_PREFIX $IBOM_CMD \
     exit 0
   }
 
+# iBoM sometimes writes relative to the PCB file. Search broadly and copy if found.
 if [[ -f "$IBOM_DIR/ibom.html" ]]; then
   info "Interactive BOM generated: $IBOM_DIR/ibom.html"
 else
-  warn "iBoM HTML not found after generation"
+  # Search for ibom.html in other common output locations
+  FOUND=$(find . "$(dirname "$PCB")" -name "ibom.html" -type f 2>/dev/null | head -1 || true)
+  if [[ -n "$FOUND" && -f "$FOUND" ]]; then
+    cp "$FOUND" "$IBOM_DIR/ibom.html"
+    info "Interactive BOM relocated from $FOUND → $IBOM_DIR/ibom.html"
+  else
+    warn "iBoM HTML not found after generation"
+  fi
 fi
