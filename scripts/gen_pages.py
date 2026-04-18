@@ -240,42 +240,26 @@ if os.path.isdir(fab_base):
 # Tab content builders
 # ────────────────────────────────────────────────────────────
 def tab_pcb():
-    """PCB tab: SVG front/back switcher + optional KiCanvas full viewer."""
-    if not (PREVIEW_FRONT or PREVIEW_BACK):
-        if KC_PCB:
-            return (
-                f'<div class="viewer-wrap"><kicanvas-embed src="{_url(KC_PCB)}" controls="full">'
-                '</kicanvas-embed></div>'
-                '<div class="viewer-hint">Pan: click+drag &middot; Zoom: scroll</div>'
-            )
-        return '<div class="viewer-wrap"><div class="viewer-empty">No PCB data</div></div>'
+    """PCB tab: KiCanvas full-viewport interactive viewer.
 
-    front = _url(PREVIEW_FRONT or PREVIEW_BACK)
-    back = _url(PREVIEW_BACK or PREVIEW_FRONT)
-    has_back = bool(PREVIEW_BACK)
-
-    kc_section = ""
+    KiCanvas's built-in `controls="full"` mode includes layer visibility
+    controls (right-hand panel) AND a flip-board button in the toolbar —
+    the user can control which side (F.Cu / B.Cu etc) is visible natively.
+    """
     if KC_PCB:
-        kc_section = (
-            '<div class="panel-pad" style="border-top:1px solid var(--border);">'
-            '<h3>Interactive viewer (KiCanvas)</h3>'
-            '<p class="subnote">Click components to inspect. Layer control in KiCanvas right panel.</p>'
-            f'<div class="viewer-wrap" style="height:500px;min-height:500px;">'
-            f'<kicanvas-embed src="{_url(KC_PCB)}" controls="full"></kicanvas-embed></div>'
-            '</div>'
+        return (
+            f'<div class="viewer-wrap"><kicanvas-embed src="{_url(KC_PCB)}" controls="full">'
+            '</kicanvas-embed></div>'
+            '<div class="viewer-hint">Pan: click+drag &middot; Zoom: scroll &middot; '
+            'Select: click component &middot; Flip side: toolbar button (top-right) &middot; '
+            'Layers: right panel</div>'
         )
-
-    return f'''<div class="side-toggle-bar">
-<button class="side-btn active" data-side="front">Front (Top)</button>
-<button class="side-btn" data-side="back" {'' if has_back else 'disabled'}>Back (Bottom)</button>
-<span class="side-hint">Drag to pan &middot; Scroll to zoom &middot; Double-click to reset</span>
-</div>
-<div class="pcb-svg-viewer" id="pcb-svg-viewer">
-  <div class="pcb-svg-stage" id="pcb-stage-front" data-svg="{front}"></div>
-  <div class="pcb-svg-stage pcb-svg-back-flip" id="pcb-stage-back" data-svg="{back}" hidden></div>
-  <div class="pcb-svg-loading" id="pcb-loading">Loading board...</div>
-</div>
-{kc_section}'''
+    # Fallback: show front/back SVG previews if KiCanvas source unavailable
+    if PREVIEW_FRONT or PREVIEW_BACK:
+        pf = f'<figure><figcaption>Front</figcaption><img src="{_url(PREVIEW_FRONT)}" alt="Front"></figure>' if PREVIEW_FRONT else ""
+        pb = f'<figure><figcaption>Back</figcaption><img src="{_url(PREVIEW_BACK)}" alt="Back"></figure>' if PREVIEW_BACK else ""
+        return f'<div class="panel-pad"><div class="board-previews">{pf}{pb}</div></div>'
+    return '<div class="viewer-wrap"><div class="viewer-empty">No PCB data</div></div>'
 
 
 def tab_sch():
@@ -291,7 +275,15 @@ def tab_sch():
 
 def tab_bom():
     if HAS_IBOM:
-        return '<iframe class="ibom-frame" src="assembly/ibom.html" title="Interactive BOM"></iframe>'
+        return (
+            '<div class="bom-toolbar">'
+            '<span class="subnote">Interactive BOM &mdash; click a component row to highlight on board, hover for details.</span>'
+            '<a class="bom-openbtn" href="assembly/ibom.html" target="_blank" rel="noopener">'
+            'Open in new tab &nbsp;&#8599;</a>'
+            '</div>'
+            '<iframe class="ibom-frame" src="assembly/ibom.html" '
+            'title="Interactive BOM" allowfullscreen loading="eager"></iframe>'
+        )
     return (
         '<div class="panel-pad">'
         '<h3>Interactive BOM unavailable</h3>'
@@ -306,9 +298,12 @@ def tab_3d():
         step_link = ""
         if STEP_FILE:
             step_link = f' &middot; <a href="{_url(STEP_FILE)}" download>Download STEP</a>'
-        return f'''<div id="viewer-3d-container" class="viewer-3d"></div>
+        # Iframe into a standalone Three.js viewer page — isolates canvas
+        # sizing from tab-switching, and keeps CDN script load-order simple.
+        return f'''<iframe class="viewer-3d-frame" src="3d-viewer.html" title="3D Model Viewer" allowfullscreen></iframe>
 <div class="viewer-hint">Orbit: left-click+drag &middot; Pan: right-click+drag &middot; Zoom: scroll
-&middot; <a href="{_url(VRML_FILE)}" download>Download VRML</a>{step_link}</div>'''
+&middot; <a href="{_url(VRML_FILE)}" download>Download VRML</a>{step_link}
+&middot; <a href="3d-viewer.html" target="_blank" rel="noopener">Open in new tab &#8599;</a></div>'''
     # No VRML — show static renders or previews
     if RENDER_TOP or RENDER_BOTTOM:
         tabs, panels = [], []
@@ -478,7 +473,11 @@ code{background:var(--bg3);padding:1px 6px;border-radius:3px;font-size:.85em}
 .board-previews figcaption{padding:8px 12px;background:var(--bg3);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)}
 .board-previews img{width:100%;height:auto;display:block}
 
-.ibom-frame{width:100%;height:calc(100vh - 180px);min-height:600px;border:none;background:#1a1a2e;display:block}
+.ibom-frame{width:100%;height:calc(100vh - 220px);min-height:600px;border:none;background:#1a1a2e;display:block}
+.bom-toolbar{display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--bg2);border-bottom:1px solid var(--border);justify-content:space-between;flex-wrap:wrap}
+.bom-openbtn{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);padding:4px 12px;font-size:.78rem;font-weight:600;text-decoration:none;white-space:nowrap}
+.bom-openbtn:hover{color:var(--accent);border-color:var(--accent);text-decoration:none}
+.viewer-3d-frame{width:100%;height:calc(100vh - 220px);min-height:500px;border:none;background:#1a1a2e;display:block}
 .viewer-3d{width:100%;height:calc(100vh - 180px);min-height:500px;border-bottom:1px solid var(--border);background:#1a1a2e;position:relative}
 .viewer-3d canvas{display:block}
 
@@ -497,7 +496,7 @@ td.ext{color:var(--text2);font-family:monospace;font-size:.75rem}
 .dl-hidden{display:none}
 .report-section{margin-bottom:32px}
 .site-footer{border-top:1px solid var(--border);padding:12px 24px;text-align:center;font-size:.75rem;color:var(--text2)}
-@media(max-width:768px){.header{flex-direction:column;align-items:flex-start}.header-meta{margin-left:0}.board-previews{grid-template-columns:1fr}.viewer-wrap,.ibom-frame,.viewer-3d,.pcb-svg-viewer{height:60vh;min-height:350px}}
+@media(max-width:768px){.header{flex-direction:column;align-items:flex-start}.header-meta{margin-left:0}.board-previews{grid-template-columns:1fr}.viewer-wrap,.ibom-frame,.viewer-3d,.viewer-3d-frame,.pcb-svg-viewer{height:60vh;min-height:350px}}
 """
 
 
@@ -505,8 +504,6 @@ td.ext{color:var(--text2);font-family:monospace;font-size:.75rem}
 # JavaScript (as one string — no Python interpolation inside)
 # ────────────────────────────────────────────────────────────
 # Bake the VRML URL and initial theme so we don't need server-side interpolation in JS.
-VRML_URL_JS = json.dumps(_url(VRML_FILE)) if VRML_FILE else "null"
-
 JS = """
 (function(){
 'use strict';
@@ -523,8 +520,6 @@ themeBtn.addEventListener('click', function(){
   html.setAttribute('data-theme', next);
   localStorage.setItem('kicad-ci-theme', next);
   this.textContent = next === 'dark' ? 'Sun' : 'Moon';
-  // Notify 3D viewer to update its background
-  if (window.__kcci_threejs_setTheme) window.__kcci_threejs_setTheme(next);
 });
 
 // ── Tabs ───────────────────────────────────────────────
@@ -539,8 +534,6 @@ function showTab(name) {
   document.querySelectorAll('.tab-panel').forEach(function(p){
     p.classList.toggle('active', p.id === targetId);
   });
-  if (name === 'pcb' && window.__kcci_pcb_show) window.__kcci_pcb_show();
-  if (name === '3d' && window.__kcci_threejs_init) window.__kcci_threejs_init();
   return found;
 }
 document.querySelectorAll('.tab-btn').forEach(function(btn){
@@ -554,210 +547,9 @@ var initHash = location.hash.replace('#','');
 if (initHash) showTab(initHash);
 window.addEventListener('hashchange', function(){ showTab(location.hash.replace('#','')); });
 
-// ── PCB SVG front/back viewer ──────────────────────────
-(function() {
-  var wrap = document.getElementById('pcb-svg-viewer');
-  if (!wrap) return;
-  var stageFront = document.getElementById('pcb-stage-front');
-  var stageBack = document.getElementById('pcb-stage-back');
-  var loading = document.getElementById('pcb-loading');
-  var btnFront = document.querySelector('.side-btn[data-side="front"]');
-  var btnBack = document.querySelector('.side-btn[data-side="back"]');
-  var currentSide = 'front';
-  var loaded = { front: false, back: false };
-  var panzoom = { front: null, back: null };
+// PCB tab is pure KiCanvas — no additional JS needed.
 
-  function loadSvg(stage, onReady) {
-    var url = stage.getAttribute('data-svg');
-    if (!url || stage.__loaded) { if (onReady) onReady(); return; }
-    stage.__loaded = true;
-    fetch(url).then(function(r){ return r.text(); }).then(function(text){
-      // Extract the <svg> element and inject inline
-      var m = text.match(/<svg[\\s\\S]*<\\/svg>/i);
-      if (!m) { loading.textContent = 'Failed to parse SVG'; return; }
-      stage.innerHTML = m[0];
-      var svg = stage.querySelector('svg');
-      if (svg) {
-        svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-        svg.style.width = '100%';
-        svg.style.height = '100%';
-      }
-      if (onReady) onReady(svg);
-    }).catch(function(e){
-      loading.textContent = 'Failed to load: ' + e.message;
-    });
-  }
-
-  function initPanZoom(side, svg) {
-    if (panzoom[side] || !svg || typeof svgPanZoom === 'undefined') return;
-    try {
-      panzoom[side] = svgPanZoom(svg, {
-        zoomEnabled: true, controlIconsEnabled: false, fit: true, center: true,
-        minZoom: 0.5, maxZoom: 20, dblClickZoomEnabled: false,
-        mouseWheelZoomEnabled: true, panEnabled: true
-      });
-    } catch(e) { /* swallow */ }
-  }
-
-  window.__kcci_pcb_show = function() {
-    // Hide loading spinner once at least one stage has tried to load
-    if (!loaded.front) {
-      loaded.front = true;
-      loadSvg(stageFront, function(svg){
-        loading.style.display = 'none';
-        initPanZoom('front', svg);
-      });
-    }
-  };
-
-  function setSide(side) {
-    if (side === currentSide) return;
-    currentSide = side;
-    stageFront.hidden = (side !== 'front');
-    stageBack.hidden = (side !== 'back');
-    btnFront.classList.toggle('active', side === 'front');
-    btnBack.classList.toggle('active', side === 'back');
-    if (side === 'back' && !loaded.back) {
-      loaded.back = true;
-      loadSvg(stageBack, function(svg){ initPanZoom('back', svg); });
-    }
-    setTimeout(function(){
-      var pz = panzoom[side];
-      if (pz) { pz.resize(); pz.fit(); pz.center(); }
-    }, 60);
-  }
-  btnFront.addEventListener('click', function(){ setSide('front'); });
-  if (!btnBack.disabled) btnBack.addEventListener('click', function(){ setSide('back'); });
-
-  wrap.addEventListener('dblclick', function(){
-    var pz = panzoom[currentSide];
-    if (pz) { pz.resetZoom(); pz.center(); pz.fit(); }
-  });
-
-  // If PCB tab is initially active (default), kick off load
-  if (document.getElementById('tab-pcb').classList.contains('active')) {
-    window.__kcci_pcb_show();
-  }
-})();
-
-// ── 3D viewer (Three.js + VRMLLoader) lazy init ──────
-(function() {
-  var container = document.getElementById('viewer-3d-container');
-  if (!container) return;
-  var VRML_URL = __VRML_URL_JS__;
-  if (!VRML_URL) return;
-  var inited = false, scene, camera, renderer, controls, model;
-
-  function themeBg() {
-    return document.documentElement.getAttribute('data-theme') === 'dark' ? 0x1a1a2e : 0xf6f8fa;
-  }
-
-  window.__kcci_threejs_setTheme = function(theme) {
-    if (scene) scene.background = new THREE.Color(themeBg());
-  };
-
-  window.__kcci_threejs_init = function() {
-    if (inited) {
-      // Re-size on tab show (canvas had 0 size when hidden)
-      setTimeout(function(){
-        var w = container.clientWidth, h = container.clientHeight;
-        if (w > 0 && h > 0 && renderer) {
-          renderer.setSize(w, h);
-          camera.aspect = w / h;
-          camera.updateProjectionMatrix();
-        }
-      }, 100);
-      return;
-    }
-    if (typeof THREE === 'undefined' || !THREE.VRMLLoader || !THREE.OrbitControls) {
-      container.innerHTML = '<div class="viewer-empty">Three.js failed to load (CDN issue?)</div>';
-      return;
-    }
-    inited = true;
-
-    // Wait a tick so container has real dimensions
-    setTimeout(function(){
-      var w = container.clientWidth || 800;
-      var h = container.clientHeight || 600;
-
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(themeBg());
-
-      camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 100000);
-      camera.position.set(100, 100, 150);
-      camera.up.set(0, 0, 1);
-
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.setSize(w, h);
-      container.innerHTML = '';
-      container.appendChild(renderer.domElement);
-
-      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-      var d1 = new THREE.DirectionalLight(0xffffff, 0.7);
-      d1.position.set(1, 1, 1).normalize();
-      scene.add(d1);
-      var d2 = new THREE.DirectionalLight(0xffffff, 0.4);
-      d2.position.set(-1, -0.5, -0.7).normalize();
-      scene.add(d2);
-
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.1;
-      controls.screenSpacePanning = true;
-
-      // Loading indicator
-      var msg = document.createElement('div');
-      msg.className = 'viewer-empty';
-      msg.style.position = 'absolute';
-      msg.style.top = '50%';
-      msg.style.left = '50%';
-      msg.style.transform = 'translate(-50%,-50%)';
-      msg.textContent = 'Loading 3D model...';
-      container.appendChild(msg);
-
-      new THREE.VRMLLoader().load(VRML_URL, function(obj) {
-        msg.remove();
-        model = obj;
-        var box = new THREE.Box3().setFromObject(obj);
-        var center = box.getCenter(new THREE.Vector3());
-        var size = box.getSize(new THREE.Vector3());
-        obj.position.sub(center);
-        scene.add(obj);
-        var maxDim = Math.max(size.x, size.y, size.z);
-        var dist = maxDim / (2 * Math.tan(Math.PI * camera.fov / 360)) * 1.6;
-        camera.position.set(dist * 0.6, dist * 0.6, dist * 0.8);
-        camera.lookAt(0, 0, 0);
-        controls.target.set(0, 0, 0);
-        controls.update();
-      }, function(xhr){
-        if (xhr.total > 0) msg.textContent = 'Loading 3D model... ' + Math.round(xhr.loaded / xhr.total * 100) + '%';
-      }, function(err){
-        msg.textContent = 'Failed to load: ' + (err && err.message ? err.message : 'error');
-      });
-
-      window.addEventListener('resize', function(){
-        var w2 = container.clientWidth, h2 = container.clientHeight;
-        if (w2 > 0 && h2 > 0) {
-          renderer.setSize(w2, h2);
-          camera.aspect = w2/h2;
-          camera.updateProjectionMatrix();
-        }
-      });
-
-      (function animate(){
-        requestAnimationFrame(animate);
-        controls.update();
-        renderer.render(scene, camera);
-      })();
-    }, 50);
-  };
-
-  // If 3D tab is the initial tab (via hash), kick off
-  if (document.getElementById('tab-3d').classList.contains('active')) {
-    window.__kcci_threejs_init();
-  }
-})();
+// 3D tab is a standalone iframe to 3d-viewer.html — no inline JS needed.
 
 // ── Render image toggle (for fallback when no VRML) ──
 document.querySelectorAll('.render-tab').forEach(function(btn){
@@ -783,7 +575,7 @@ if (ds) ds.addEventListener('input', function(){
 })();
 """
 
-JS = JS.replace("__VRML_URL_JS__", VRML_URL_JS)
+# (No placeholder replacements needed — 3D viewer is now in a standalone file.)
 
 
 # ────────────────────────────────────────────────────────────
@@ -796,10 +588,6 @@ page = f'''<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{htmlmod.escape(BOARD_NAME)} — KiCad CI</title>
 <script type="module" src="https://kicanvas.org/kicanvas/kicanvas.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/VRMLLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <style>{CSS}</style>
 </head>
 <body>
@@ -858,3 +646,133 @@ with open(output_path, "w", encoding="utf-8") as f:
     f.write(page)
 
 _log(f"Generated: {output_path} ({len(page)} bytes)")
+
+
+# ────────────────────────────────────────────────────────────
+# Standalone 3D viewer HTML (if VRML available)
+# ────────────────────────────────────────────────────────────
+if VRML_FILE:
+    vrml_url_for_viewer = json.dumps(_url(VRML_FILE))
+    viewer_html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{htmlmod.escape(BOARD_NAME)} &mdash; 3D Viewer</title>
+<style>
+html, body {{ margin: 0; height: 100%; overflow: hidden; background: #1a1a2e; color: #ccc;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+#viewer {{ width: 100vw; height: 100vh; display: block; position: relative; }}
+#msg {{ position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        font-size: .95rem; pointer-events: none; text-align: center; line-height: 1.5; }}
+canvas {{ display: block; }}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/VRMLLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<div id="viewer"><div id="msg">Loading 3D model...</div></div>
+<script>
+(function() {{
+  var VRML_URL = {vrml_url_for_viewer};
+  var container = document.getElementById('viewer');
+  var msg = document.getElementById('msg');
+
+  if (typeof THREE === 'undefined') {{
+    msg.textContent = 'Three.js failed to load from CDN';
+    return;
+  }}
+  if (!THREE.VRMLLoader) {{
+    msg.textContent = 'VRMLLoader not available';
+    return;
+  }}
+  if (!THREE.OrbitControls) {{
+    msg.textContent = 'OrbitControls not available';
+    return;
+  }}
+
+  var w = window.innerWidth, h = window.innerHeight;
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a1a2e);
+
+  var camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100000);
+  camera.position.set(100, 100, 150);
+  camera.up.set(0, 0, 1);
+
+  var renderer = new THREE.WebGLRenderer({{ antialias: true }});
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(w, h);
+  container.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  var d1 = new THREE.DirectionalLight(0xffffff, 0.7);
+  d1.position.set(1, 1, 1).normalize();
+  scene.add(d1);
+  var d2 = new THREE.DirectionalLight(0xffffff, 0.4);
+  d2.position.set(-1, -0.5, -0.7).normalize();
+  scene.add(d2);
+
+  var controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.1;
+  controls.screenSpacePanning = true;
+
+  new THREE.VRMLLoader().load(
+    VRML_URL,
+    function(obj) {{
+      msg.remove();
+      try {{
+        var box = new THREE.Box3().setFromObject(obj);
+        var center = box.getCenter(new THREE.Vector3());
+        var size = box.getSize(new THREE.Vector3());
+        obj.position.sub(center);
+        scene.add(obj);
+        var maxDim = Math.max(size.x, size.y, size.z);
+        if (maxDim > 0 && isFinite(maxDim)) {{
+          var dist = maxDim / (2 * Math.tan(Math.PI * camera.fov / 360)) * 1.6;
+          camera.position.set(dist * 0.6, dist * 0.6, dist * 0.8);
+        }}
+        camera.lookAt(0, 0, 0);
+        controls.target.set(0, 0, 0);
+        controls.update();
+      }} catch(e) {{
+        console.error('VRML post-load error:', e);
+      }}
+    }},
+    function(xhr) {{
+      if (xhr.total > 0) {{
+        var pct = Math.round(xhr.loaded / xhr.total * 100);
+        msg.textContent = 'Loading 3D model... ' + pct + '%';
+      }} else {{
+        msg.textContent = 'Loading 3D model... (' + Math.round(xhr.loaded / 1024) + ' KB)';
+      }}
+    }},
+    function(err) {{
+      console.error('VRML load error:', err);
+      msg.innerHTML = 'Failed to load VRML<br><span style="font-size:.8em;opacity:.7;">' +
+                      (err && err.message ? err.message : 'unknown error') + '</span>';
+    }}
+  );
+
+  window.addEventListener('resize', function() {{
+    var w2 = window.innerWidth, h2 = window.innerHeight;
+    renderer.setSize(w2, h2);
+    camera.aspect = w2 / h2;
+    camera.updateProjectionMatrix();
+  }});
+
+  (function animate() {{
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }})();
+}})();
+</script>
+</body>
+</html>
+'''
+    viewer_path = os.path.join(SITE, "3d-viewer.html")
+    with open(viewer_path, "w", encoding="utf-8") as f:
+        f.write(viewer_html)
+    _log(f"Generated: {viewer_path} ({len(viewer_html)} bytes)")
