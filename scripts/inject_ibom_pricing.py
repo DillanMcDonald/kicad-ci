@@ -131,31 +131,42 @@ def _build_injection(pricing_data: dict) -> str:
   function setup() {{
     addHeaders();
     augmentRows();
+  }}
 
-    // iBoM rebuilds bombody on every view/filter change. Wrap its
-    // populateBomBody so we re-augment after each rebuild.
-    if (typeof window.populateBomBody === 'function' && !window.populateBomBody.__kcciWrapped) {{
-      const orig = window.populateBomBody;
-      window.populateBomBody = function() {{
-        const r = orig.apply(this, arguments);
-        // Defer slightly so iBoM finishes its async work
-        setTimeout(() => {{ addHeaders(); augmentRows(); }}, 0);
-        return r;
-      }};
-      window.populateBomBody.__kcciWrapped = true;
-    }}
+  function watchBody() {{
+    const body = document.getElementById('bombody');
+    if (!body || body.__kcciObserved) return;
+    // iBoM rebuilds bombody (clears + re-adds rows) on every filter, sort,
+    // or view-mode change. Watch for direct childList changes and re-augment.
+    const obs = new MutationObserver((mutations) => {{
+      // Only act on actual structural changes, not our own row.dataset writes
+      let structural = false;
+      for (const m of mutations) {{
+        if (m.type === 'childList' && (m.addedNodes.length || m.removedNodes.length)) {{
+          structural = true; break;
+        }}
+      }}
+      if (structural) {{
+        // Defer to next tick so iBoM finishes its rebuild
+        requestAnimationFrame(() => {{ addHeaders(); augmentRows(); }});
+      }}
+    }});
+    obs.observe(body, {{ childList: true }});
+    body.__kcciObserved = true;
   }}
 
   function start() {{
-    // Try immediately, then poll briefly until bombody exists.
     setup();
-    const body = document.getElementById('bombody');
-    if (body && body.rows.length > 0) return;
+    watchBody();
+    // Poll until bombody exists + has rows (iBoM init is async)
     let tries = 0;
     const iv = setInterval(() => {{
       setup();
+      watchBody();
       const b = document.getElementById('bombody');
-      if ((b && b.rows.length > 0) || ++tries > 100) clearInterval(iv);
+      if ((b && b.rows.length > 0 && b.rows[0].dataset.kcciAugmented) || ++tries > 150) {{
+        clearInterval(iv);
+      }}
     }}, 100);
   }}
 
