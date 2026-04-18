@@ -131,7 +131,10 @@ class DigiKeyClient(DistributorClient):
                     url,
                     headers={
                         "Authorization": f"Bearer {token}",
-                        "X-IBMCLOUD-KEY": self._client_id,
+                        "X-DIGIKEY-Client-Id": self._client_id,
+                        "X-DIGIKEY-Locale-Site": "US",
+                        "X-DIGIKEY-Locale-Language": "en",
+                        "X-DIGIKEY-Locale-Currency": "USD",
                         "Accept": "application/json",
                     },
                     params={"include": "PricingTiers,MediaLinks"},
