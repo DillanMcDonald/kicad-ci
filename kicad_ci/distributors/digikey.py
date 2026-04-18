@@ -217,27 +217,55 @@ def _parse_result(raw: dict, mpn: str) -> Optional[PriceResult]:
     if isinstance(mfr, dict):
         manufacturer = mfr.get("Name", "")
 
-    # Datasheet
-    datasheet_url = ""
-    for media in product.get("MediaLinks", []) or []:
-        if isinstance(media, dict) and media.get("MediaType", "").lower() == "datasheets":
-            datasheet_url = media.get("Url", "")
-            break
+    # Datasheet (v4: top-level DatasheetUrl; legacy: MediaLinks)
+    datasheet_url = product.get("DatasheetUrl", "") or ""
+    if not datasheet_url:
+        for media in product.get("MediaLinks", []) or []:
+            if isinstance(media, dict) and media.get("MediaType", "").lower() == "datasheets":
+                datasheet_url = media.get("Url", "")
+                break
 
-    # Price breaks
+    # Price breaks — v4: ProductVariations[].StandardPricing
+    # Legacy: top-level StandardPricing
     breaks: list[PriceBreak] = []
     currency = "USD"
-    for tier in product.get("StandardPricing", []) or []:
-        if not isinstance(tier, dict):
-            continue
+
+    def _add_tier(tier):
         try:
             qty = int(tier["BreakQuantity"])
             price = Decimal(str(tier["UnitPrice"]))
+            breaks.append(PriceBreak(min_qty=qty, unit_price_usd=price))
         except (KeyError, ValueError, TypeError):
-            continue
-        breaks.append(PriceBreak(min_qty=qty, unit_price_usd=price))
+            pass
 
-    breaks.sort(key=lambda b: b.min_qty)
+    # v4 path
+    for variation in product.get("ProductVariations", []) or []:
+        if not isinstance(variation, dict):
+            continue
+        for tier in variation.get("StandardPricing", []) or []:
+            if isinstance(tier, dict):
+                _add_tier(tier)
+
+    # Legacy path (still try in case API returns it)
+    for tier in product.get("StandardPricing", []) or []:
+        if isinstance(tier, dict):
+            _add_tier(tier)
+
+    # Fallback: if no tier breaks but UnitPrice is set, create a single qty=1 break
+    if not breaks:
+        try:
+            unit_price = Decimal(str(product.get("UnitPrice", 0) or 0))
+            if unit_price > 0:
+                breaks.append(PriceBreak(min_qty=1, unit_price_usd=unit_price))
+        except (ValueError, TypeError):
+            pass
+
+    # Dedupe by qty (keep lowest price), then sort
+    by_qty: dict = {}
+    for b in breaks:
+        if b.min_qty not in by_qty or b.unit_price_usd < by_qty[b.min_qty].unit_price_usd:
+            by_qty[b.min_qty] = b
+    breaks = sorted(by_qty.values(), key=lambda b: b.min_qty)
 
     return PriceResult(
         mpn=product.get("ManufacturerProductNumber", mpn),
