@@ -384,6 +384,49 @@ def write_xlsx(
     wb.save(str(output_path))
 
 
+def write_json(priced_bom: List[PricedBomLine], output_path: Path, build_qty: int = 1):
+    """Write a compact pricing.json keyed by MPN — for iBoM injection.
+
+    Schema:
+        {
+          "currency": "USD",
+          "build_qty": 100,
+          "parts": {
+            "MPN-1234": {
+              "best_price": 0.32,
+              "best_distributor": "digikey",
+              "buy_url": "https://www.digikey.com/...",
+              "stock": 1024,
+              "datasheet": "https://...",
+              "prices": {"digikey": 0.32, "mouser": 0.34}
+            }
+          }
+        }
+    """
+    parts = {}
+    for pbl in priced_bom:
+        line = pbl.bom_line
+        best = pbl.best_result
+        per_dist = {}
+        for dist_name, result in pbl.distributor_prices.items():
+            if not result:
+                continue
+            p = result.price_at_qty(line.qty)
+            if p:
+                per_dist[dist_name] = float(p)
+        parts[line.mpn] = {
+            "best_price": float(pbl.best_unit_price) if pbl.best_unit_price else None,
+            "best_distributor": best.distributor if best else None,
+            "buy_url": best.product_url if best else None,
+            "stock": best.stock if best else 0,
+            "datasheet": best.datasheet_url if best else None,
+            "manufacturer": best.manufacturer if best else "",
+            "prices": per_dist,
+        }
+    data = {"currency": "USD", "build_qty": build_qty, "parts": parts}
+    output_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
 # ---- Sheet 1: BOM Summary ------------------------------------------------
 
 _SUMMARY_HEADERS = [
@@ -685,6 +728,8 @@ if _HAS_TYPER:
             help="Comma-separated list of distributors to query."),
         output: Path = typer.Option(Path("pricing.xlsx"), "--output", "-o",
             help="Output XLSX file path."),
+        json_out: Optional[Path] = typer.Option(None, "--json-out",
+            help="Also write a compact pricing.json (for iBoM injection)."),
         no_dnp: bool = typer.Option(True, "--no-dnp/--include-dnp",
             help="Exclude DNP components (default: exclude)."),
     ):
@@ -704,6 +749,10 @@ if _HAS_TYPER:
 
         typer.echo(f"Writing XLSX: {output}")
         write_xlsx(priced, output, build_qty=qty)
+
+        if json_out:
+            typer.echo(f"Writing JSON: {json_out}")
+            write_json(priced, json_out, build_qty=qty)
         typer.echo("Done.")
 
 
@@ -723,6 +772,7 @@ if __name__ == "__main__":
         parser.add_argument("--qty", type=int, default=1)
         parser.add_argument("--distributors", default="mouser,digikey,nexar,jlcpcb")
         parser.add_argument("--output", type=Path, default=Path("pricing.xlsx"))
+        parser.add_argument("--json-out", dest="json_out", type=Path, default=None)
         parser.add_argument("--no-dnp", dest="no_dnp", action="store_true", default=True)
         args = parser.parse_args()
 
@@ -731,3 +781,6 @@ if __name__ == "__main__":
         priced    = aggregate_prices(bom_lines, dist_list)
         write_xlsx(priced, args.output, build_qty=args.qty)
         print(f"Written: {args.output}")
+        if args.json_out:
+            write_json(priced, args.json_out, build_qty=args.qty)
+            print(f"Written: {args.json_out}")

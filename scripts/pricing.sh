@@ -59,14 +59,16 @@ if ! python3 -c "import openpyxl, requests" 2>/dev/null; then
 fi
 
 PRICING_OUTPUT="$ASSEMBLY_DIR/pricing.xlsx"
+PRICING_JSON="$ASSEMBLY_DIR/pricing.json"
 QTY="${PRICING_QTY:-100}"
 
-info "Generating pricing for qty=$QTY → $PRICING_OUTPUT"
+info "Generating pricing for qty=$QTY → $PRICING_OUTPUT (+ JSON)"
 python3 "$SCRIPT_DIR/pricing_xlsx.py" \
   --bom "$BOM" \
   --qty "$QTY" \
   --distributors "$DISTRIBUTORS" \
-  --output "$PRICING_OUTPUT" 2>&1 || {
+  --output "$PRICING_OUTPUT" \
+  --json-out "$PRICING_JSON" 2>&1 || {
     warn "pricing_xlsx.py failed — continuing without pricing"
     exit 0
   }
@@ -75,4 +77,13 @@ if [[ -f "$PRICING_OUTPUT" ]]; then
   info "Pricing XLSX generated: $PRICING_OUTPUT"
 else
   warn "Pricing XLSX not created"
+fi
+
+# Inject pricing into iBoM (if both exist)
+IBOM_HTML="$ASSEMBLY_DIR/ibom.html"
+if [[ -f "$IBOM_HTML" && -f "$PRICING_JSON" ]]; then
+  info "Injecting pricing into iBoM..."
+  python3 "$SCRIPT_DIR/inject_ibom_pricing.py" \
+    --ibom "$IBOM_HTML" \
+    --pricing "$PRICING_JSON" 2>&1 || warn "iBoM pricing injection failed"
 fi
