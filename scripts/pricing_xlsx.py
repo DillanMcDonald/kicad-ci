@@ -389,7 +389,7 @@ def write_xlsx(
 _SUMMARY_HEADERS = [
     "Ref Des", "MPN", "Manufacturer", "Description",
     "Qty", "Best Unit Price (USD)", "Extended Price (USD)",
-    "Best Distributor", "Stock", "Stock Status", "Datasheet",
+    "Best Distributor", "Buy", "Stock", "Stock Status", "Datasheet",
 ]
 
 
@@ -429,6 +429,7 @@ def _write_bom_summary(wb, priced_bom: List[PricedBomLine], build_qty: int):
         )
 
         datasheet = best.datasheet_url if best else ""
+        buy_url = best.product_url if best else ""
 
         values = [
             ", ".join(line.refs),
@@ -439,6 +440,7 @@ def _write_bom_summary(wb, priced_bom: List[PricedBomLine], build_qty: int):
             float(unit_price) if unit_price else None,
             float(ext_price)  if ext_price  else None,
             best.distributor if best else "",
+            buy_url,
             stock,
             stock_status,
             datasheet,
@@ -447,17 +449,21 @@ def _write_bom_summary(wb, priced_bom: List[PricedBomLine], build_qty: int):
         for col_idx, val in enumerate(values, 1):
             cell = ws.cell(row=row_idx, column=col_idx, value=val)
             cell.border = _thin_border()
-            if col_idx == 10:  # Stock Status
+            if col_idx == 11:  # Stock Status
                 cell.fill = status_fill
             if col_idx in (6, 7) and val is not None:
                 cell.number_format = '"$"#,##0.0000'
-            if col_idx == 11 and datasheet:  # Datasheet hyperlink
+            if col_idx == 9 and buy_url:  # Buy hyperlink
+                cell.hyperlink = buy_url
+                cell.font = Font(color="0563C1", underline="single")
+                cell.value = "Buy »"
+            if col_idx == 12 and datasheet:  # Datasheet hyperlink
                 cell.hyperlink = datasheet
                 cell.font = Font(color="0563C1", underline="single")
                 cell.value = "Datasheet"
 
     # Column widths
-    widths = [20, 22, 22, 28, 6, 18, 18, 16, 10, 12, 12]
+    widths = [20, 22, 22, 28, 6, 18, 18, 16, 8, 10, 12, 12]
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -522,6 +528,14 @@ def _write_price_comparison(wb, priced_bom: List[PricedBomLine], build_qty: int)
             cell.border = _thin_border()
             if col_idx >= n_fixed + 1 and isinstance(val, float):
                 cell.number_format = '"$"#,##0.0000'
+                # Make the price clickable → distributor product page
+                dist_idx = col_idx - n_fixed - 1
+                if 0 <= dist_idx < n_dist:
+                    dist_name = all_dists[dist_idx]
+                    result = pbl.distributor_prices.get(dist_name)
+                    if result and result.product_url:
+                        cell.hyperlink = result.product_url
+                        cell.font = Font(color="0563C1", underline="single")
 
         # Highlight minimum non-None dist price in green
         non_none_prices = [(i, p) for i, p in enumerate(dist_prices) if p is not None]
