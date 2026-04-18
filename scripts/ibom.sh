@@ -26,17 +26,42 @@ info "Generating Interactive BOM: $PCB"
 
 # Install InteractiveHtmlBom via pip
 if ! command -v generate_interactive_bom &>/dev/null; then
+  # Ensure pip is available — KiCad 9 Docker doesn't ship it
+  if ! python3 -m pip --version &>/dev/null; then
+    info "Installing pip via ensurepip..."
+    python3 -m ensurepip --upgrade 2>&1 || {
+      info "ensurepip failed, trying apt-get..."
+      apt-get update -qq 2>&1 && apt-get install -y -qq python3-pip 2>&1 || {
+        warn "Could not install pip — skipping iBoM"
+        exit 0
+      }
+    }
+  fi
+
   info "Installing InteractiveHtmlBom via pip..."
-  PIP_CMD="pip3"
-  command -v pip3 &>/dev/null || PIP_CMD="python3 -m pip"
-  $PIP_CMD install --quiet InteractiveHtmlBom 2>&1 || {
+  python3 -m pip install --quiet --break-system-packages InteractiveHtmlBom 2>&1 || \
+  python3 -m pip install --quiet InteractiveHtmlBom 2>&1 || {
     warn "pip install InteractiveHtmlBom failed — skipping"
     exit 0
   }
 fi
 
+# Ensure pip's user bin is in PATH (where generate_interactive_bom lands)
+export PATH="$HOME/.local/bin:/root/.local/bin:$PATH"
+
+# Find the command — may be in PATH as `generate_interactive_bom` or runnable as module
+IBOM_CMD=""
+if command -v generate_interactive_bom &>/dev/null; then
+  IBOM_CMD="generate_interactive_bom"
+elif python3 -c "import InteractiveHtmlBom.generate_interactive_bom" 2>/dev/null; then
+  IBOM_CMD="python3 -m InteractiveHtmlBom.generate_interactive_bom"
+else
+  warn "InteractiveHtmlBom not found after install — skipping"
+  exit 0
+fi
+
 # Generate the interactive BOM
-generate_interactive_bom \
+$IBOM_CMD \
   --no-browser \
   --dest-dir "$IBOM_DIR" \
   --name-format "ibom" \
