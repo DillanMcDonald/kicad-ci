@@ -1,0 +1,42 @@
+(kicad_pcb
+  (version 20231120)
+  (generator pcbnew)
+  (general
+    (thickness 1.6)
+  )
+  (footprint "Resistor_SMD:R_0402_1005Metric"
+    (layer "F.Cu")
+    (property "Reference" "R1" (layer "F.SilkS"))
+    (property "Value" "10k" (layer "F.Fab"))
+    (model "${KISYS3DMOD}/Resistor_SMD.3dshapes/R_0402_1005Metric.wrl"
+      (offset (xyz 0 0 0))
+      (scale (xyz 1 1 1))
+      (rotate (xyz 0 0 0))
+    )
+  )
+  (footprint "Capacitor_SMD:C_0402_1005Metric"
+    (layer "F.Cu")
+    (property "Reference" "C1" (layer "F.SilkS"))
+    (property "Value" "100nF" (layer "F.Fab"))
+    (model "${KISYS3DMOD}/Capacitor_SMD.3dshapes/C_0402_1005Metric.wrl"
+      (offset (xyz 0 0 0))
+      (scale (xyz 1 1 1))
+      (rotate (xyz 0 0 0))
+    )
+  )
+  (footprint "Package_TO_SOT_SMD:SOT-23"
+    (layer "F.Cu")
+    (property "Reference" "Q1" (layer "F.SilkS"))
+    (property "Value" "2N7002" (layer "F.Fab"))
+    (model "${KISYS3DMOD}/Package_TO_SOT_SMD.3dshapes/SOT-23.wrl"
+      (offset (xyz 0 0 0))
+      (scale (xyz 1 1 1))
+      (rotate (xyz 0 0 0))
+    )
+  )
+  (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
+    (layer "F.Cu")
+    (property "Reference" "J1" (layer "F.SilkS"))
+    (property "Value" "Conn_01x02" (layer "F.Fab"))
+  )
+)
