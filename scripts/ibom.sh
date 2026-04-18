@@ -60,8 +60,20 @@ else
   exit 0
 fi
 
-# Generate the interactive BOM
-$IBOM_CMD \
+# iBoM imports wx which needs an X display even in headless mode.
+# Use Xvfb (virtual framebuffer) to provide a display.
+if ! command -v xvfb-run &>/dev/null; then
+  info "Installing xvfb..."
+  apt-get update -qq 2>&1 >/dev/null && apt-get install -y -qq xvfb 2>&1 >/dev/null || {
+    warn "Could not install xvfb — iBoM generation likely to fail"
+  }
+fi
+
+# Generate the interactive BOM via Xvfb (virtual display)
+XVFB_PREFIX=""
+command -v xvfb-run &>/dev/null && XVFB_PREFIX="xvfb-run -a"
+
+$XVFB_PREFIX $IBOM_CMD \
   --no-browser \
   --dest-dir "$IBOM_DIR" \
   --name-format "ibom" \
