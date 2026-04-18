@@ -67,6 +67,8 @@ PREVIEW_FRONT=""; PREVIEW_BACK=""
 [[ -f "$SITE_DIR/preview/board-back.svg" ]] && PREVIEW_BACK="preview/board-back.svg"
 STEP_FILE=""
 for f in "$SITE_DIR/3d/"*.step "$SITE_DIR/3d/"*.STEP; do [[ -f "$f" ]] && STEP_FILE="${f#$SITE_DIR/}" && break; done 2>/dev/null || true
+VRML_FILE=""
+for f in "$SITE_DIR/3d/"*.wrl "$SITE_DIR/3d/"*.WRL; do [[ -f "$f" ]] && VRML_FILE="${f#$SITE_DIR/}" && break; done 2>/dev/null || true
 
 _count() { if [[ -d "$SITE_DIR/$1" ]]; then find "$SITE_DIR/$1" -type f 2>/dev/null | wc -l | tr -d ' '; else echo 0; fi; }
 N_FAB=$(_count fab); N_DOCS=$(_count docs); N_ASSEMBLY=$(_count assembly)
@@ -82,7 +84,7 @@ info "Interactive: pcb=$KICANVAS_PCB sch=$KICANVAS_SCH ibom=$HAS_IBOM"
 # Export all vars for Python
 export BOARD_NAME BOARD_VARIANT ERC_COLOR DRC_COLOR ERC_LABEL DRC_LABEL
 export COMMIT_SHA COMMIT_SHORT REPO_URL RUN_URL BUILD_DATE
-export KICANVAS_PCB KICANVAS_SCH HAS_IBOM STEP_FILE
+export KICANVAS_PCB KICANVAS_SCH HAS_IBOM STEP_FILE VRML_FILE
 export RENDER_TOP RENDER_BOTTOM RENDER_ANGLED PREVIEW_FRONT PREVIEW_BACK
 export TOTAL N_FAB N_REPORTS
 
@@ -114,6 +116,7 @@ render_angled = env("RENDER_ANGLED", "")
 preview_front = env("PREVIEW_FRONT", "")
 preview_back = env("PREVIEW_BACK", "")
 step_file = env("STEP_FILE", "")
+vrml_file = env("VRML_FILE", "")
 total_files = int(env("TOTAL", "0"))
 n_fab = int(env("N_FAB", "0"))
 n_reports = int(env("N_REPORTS", "0"))
@@ -215,8 +218,58 @@ vbadge = f'<span class="variant-badge variant-{variant}">{variant}</span>' if va
 
 # PCB tab content
 if kc_pcb:
-    pcb_tab = f'''<div class="viewer-wrap"><kicanvas-embed src="{kc_pcb}" controls="full"></kicanvas-embed></div>
-<div class="viewer-hint">Pan: click+drag &middot; Zoom: scroll &middot; Select: click component &middot; Layers: right panel</div>'''
+    pcb_tab = f'''<div class="side-toggle-bar">
+<button class="side-btn active" id="pcb-side-front" data-side="front">Front (Top)</button>
+<button class="side-btn" id="pcb-side-back" data-side="back">Back (Bottom)</button>
+<span class="side-hint">Flips board view &middot; also available in KiCanvas toolbar</span>
+</div>
+<div class="viewer-wrap"><kicanvas-embed id="kc-pcb" src="{kc_pcb}" controls="full"></kicanvas-embed></div>
+<div class="viewer-hint">Pan: click+drag &middot; Zoom: scroll &middot; Select: click component &middot; Layers: right panel</div>
+<script>
+(function() {{
+  var embed = document.getElementById('kc-pcb');
+  var btnFront = document.getElementById('pcb-side-front');
+  var btnBack = document.getElementById('pcb-side-back');
+  var currentSide = 'front';
+
+  function clickFlipButton() {{
+    // Locate KiCanvas's internal flip_view button and click it.
+    // Traverses shadow DOM since KiCanvas renders its toolbar inside shadow roots.
+    function findInShadow(root, selector) {{
+      if (!root) return null;
+      var el = root.querySelector ? root.querySelector(selector) : null;
+      if (el) return el;
+      var all = root.querySelectorAll ? root.querySelectorAll('*') : [];
+      for (var i = 0; i < all.length; i++) {{
+        if (all[i].shadowRoot) {{
+          var found = findInShadow(all[i].shadowRoot, selector);
+          if (found) return found;
+        }}
+      }}
+      return null;
+    }}
+    var btn = findInShadow(embed, 'kc-ui-button[name="flip_view"]')
+           || findInShadow(embed.shadowRoot, 'kc-ui-button[name="flip_view"]');
+    if (btn) {{
+      btn.click();
+      return true;
+    }}
+    return false;
+  }}
+
+  function setSide(side) {{
+    if (side === currentSide) return;
+    if (clickFlipButton()) {{
+      currentSide = side;
+      btnFront.classList.toggle('active', side === 'front');
+      btnBack.classList.toggle('active', side === 'back');
+    }}
+  }}
+
+  btnFront.addEventListener('click', function() {{ setSide('front'); }});
+  btnBack.addEventListener('click', function() {{ setSide('back'); }});
+}})();
+</script>'''
 elif preview_front:
     pcb_tab = f'''<div class="panel-pad"><div class="board-previews">
 <figure><figcaption>Front</figcaption><img src="{preview_front}" alt="Front"></figure>
@@ -254,33 +307,111 @@ Common causes:
 </ul>
 </div>'''
 
-# 3D tab — interactive viewer via Online3DViewer (MIT) embedded JS library
-# The STEP file is served from the same origin — use a relative path.
+# 3D tab — Three.js + VRMLLoader (MIT). KiCad exports VRML via kicad-cli.
+# Three.js r147 (last version with examples/js classic scripts).
 threed_viewer = ""
-if step_file:
-    # URL-encode path segments with spaces
-    from urllib.parse import quote
-    step_rel = "/".join(quote(p) for p in step_file.split("/"))
+from urllib.parse import quote
+if vrml_file:
+    vrml_rel = "/".join(quote(p) for p in vrml_file.split("/"))
+    step_dl = ""
+    if step_file:
+        step_rel = "/".join(quote(p) for p in step_file.split("/"))
+        step_dl = f' &middot; <a href="{step_rel}" download>Download STEP</a>'
     threed_viewer = f'''<div id="viewer-3d-container" class="viewer-3d"></div>
 <div class="viewer-hint">Orbit: left-click+drag &middot; Pan: right-click+drag &middot; Zoom: scroll &middot;
-<a href="{step_rel}" download style="margin-left:8px;">Download STEP</a></div>
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/online-3d-viewer/build/engine/o3dv.min.js"></script>
-<script type="text/javascript">
-window.addEventListener('load', function() {{
-  var container = document.getElementById('viewer-3d-container');
-  if (!container || typeof OV === 'undefined') {{
-    if (container) container.innerHTML = '<div class="viewer-empty">Online3DViewer failed to load</div>';
-    return;
+<a href="{vrml_rel}" download>Download VRML</a>{step_dl}</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/VRMLLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function() {{
+  function initViewer() {{
+    var container = document.getElementById('viewer-3d-container');
+    if (!container) return;
+    if (typeof THREE === 'undefined' || !THREE.VRMLLoader || !THREE.OrbitControls) {{
+      container.innerHTML = '<div class="viewer-empty">Three.js failed to load</div>';
+      return;
+    }}
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var bgColor = isDark ? 0x1a1a2e : 0xf6f8fa;
+
+    var w = container.clientWidth, h = container.clientHeight || 500;
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(bgColor);
+
+    var camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 10000);
+    camera.position.set(100, 100, 150);
+
+    var renderer = new THREE.WebGLRenderer({{ antialias: true }});
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(w, h);
+    container.appendChild(renderer.domElement);
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    var dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    dir.position.set(1, 1, 1).normalize();
+    scene.add(dir);
+    var dir2 = new THREE.DirectionalLight(0xffffff, 0.4);
+    dir2.position.set(-1, -0.5, -1).normalize();
+    scene.add(dir2);
+
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+
+    var loader = new THREE.VRMLLoader();
+    var loadingMsg = document.createElement('div');
+    loadingMsg.className = 'viewer-empty';
+    loadingMsg.textContent = 'Loading 3D model...';
+    loadingMsg.style.position = 'absolute';
+    loadingMsg.style.top = '50%';
+    loadingMsg.style.left = '50%';
+    loadingMsg.style.transform = 'translate(-50%, -50%)';
+    container.style.position = 'relative';
+    container.appendChild(loadingMsg);
+
+    loader.load('{vrml_rel}', function(object) {{
+      loadingMsg.remove();
+      // Center + fit camera
+      var box = new THREE.Box3().setFromObject(object);
+      var center = box.getCenter(new THREE.Vector3());
+      var size = box.getSize(new THREE.Vector3());
+      object.position.sub(center);
+      scene.add(object);
+      var maxDim = Math.max(size.x, size.y, size.z);
+      var dist = maxDim / (2 * Math.tan(Math.PI * camera.fov / 360)) * 1.8;
+      camera.position.set(dist * 0.6, dist * 0.6, dist * 0.8);
+      camera.lookAt(0, 0, 0);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }}, function(xhr) {{
+      if (xhr.total > 0) {{
+        loadingMsg.textContent = 'Loading 3D model... ' + Math.round(xhr.loaded / xhr.total * 100) + '%';
+      }}
+    }}, function(err) {{
+      loadingMsg.textContent = 'Failed to load VRML: ' + (err && err.message ? err.message : 'unknown error');
+    }});
+
+    window.addEventListener('resize', function() {{
+      var nw = container.clientWidth, nh = container.clientHeight || 500;
+      camera.aspect = nw / nh;
+      camera.updateProjectionMatrix();
+      renderer.setSize(nw, nh);
+    }});
+
+    (function animate() {{
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }})();
   }}
-  var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  var bg = isDark ? new OV.RGBAColor(26, 26, 46, 255) : new OV.RGBAColor(255, 255, 255, 255);
-  var viewer = new OV.EmbeddedViewer(container, {{
-    backgroundColor: bg,
-    defaultColor: new OV.RGBColor(60, 130, 90),
-    edgeSettings: new OV.EdgeSettings(true, new OV.RGBColor(0, 0, 0), 1)
-  }});
-  viewer.LoadModelFromUrlList(['{step_rel}']);
-}});
+  if (document.readyState === 'loading') {{
+    document.addEventListener('DOMContentLoaded', initViewer);
+  }} else {{
+    initViewer();
+  }}
+}})();
 </script>'''
 
 # Static render fallback
@@ -383,6 +514,11 @@ a{{color:var(--accent);text-decoration:none}}a:hover{{text-decoration:underline}
 .panel-pad{{padding:24px}}
 .viewer-wrap{{width:100%;height:calc(100vh - 180px);min-height:500px;border-bottom:1px solid var(--border);overflow:hidden;background:#1a1a2e}}
 .viewer-wrap kicanvas-embed{{width:100%;height:100%;display:block}}
+.side-toggle-bar{{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--bg2);border-bottom:1px solid var(--border)}}
+.side-btn{{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;padding:6px 14px;font-size:.82rem;font-weight:600;transition:all .15s ease}}
+.side-btn:hover{{color:var(--accent);border-color:var(--accent)}}
+.side-btn.active{{background:var(--accent);color:#fff;border-color:var(--accent)}}
+.side-hint{{margin-left:8px;font-size:.75rem;color:var(--text2)}}
 .viewer-empty{{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text2);font-size:1rem}}
 .viewer-hint{{padding:8px 16px;font-size:.78rem;color:var(--text2);background:var(--bg2);border-bottom:1px solid var(--border)}}
 .render-gallery{{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}}

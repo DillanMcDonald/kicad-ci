@@ -176,6 +176,13 @@ info "[7/9] STEP 3D model → $THREED_DIR/${PROJECT_NAME}.step"
   --force \
   "$PCB" || warn "STEP export failed — skipping (may need 3D model libraries)"
 
+info "[7/9] VRML 3D model → $THREED_DIR/${PROJECT_NAME}.wrl"
+"$KICAD_CLI" pcb export vrml \
+  --output       "$THREED_DIR/${PROJECT_NAME}.wrl" \
+  --units        mm \
+  --force \
+  "$PCB" || warn "VRML export failed — skipping (may need 3D model libraries)"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. 3D RENDERS — PNG (raytraced)
 #    Skipped if SKIP_RENDER=1 (GitHub-hosted runners have no GPU).
