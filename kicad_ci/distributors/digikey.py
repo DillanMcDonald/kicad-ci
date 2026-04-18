@@ -158,6 +158,16 @@ class DigiKeyClient(DistributorClient):
                           f"{resp.text[:200].replace(chr(10), ' ')}", file=sys.stderr)
                     return None
                 raw = resp.json()
+                # One-shot debug dump (env-controlled) so we can see actual keys
+                if os.environ.get("DIGIKEY_DEBUG"):
+                    import sys, json as _json
+                    keys = list(raw.keys()) if isinstance(raw, dict) else "non-dict"
+                    print(f"DigiKey '{mpn}' top keys: {keys}", file=sys.stderr)
+                    if isinstance(raw, dict):
+                        prod = raw.get("Product") or (raw.get("Products") or [{}])[0]
+                        if prod:
+                            print(f"  Product keys: {list(prod.keys())[:20]}", file=sys.stderr)
+                            print(f"  Sample: {_json.dumps(prod)[:400]}", file=sys.stderr)
                 break
             except requests.RequestException as e:
                 if attempt == _MAX_RETRIES - 1:
