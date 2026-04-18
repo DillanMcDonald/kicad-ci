@@ -185,21 +185,31 @@ info "[7/9] VRML 3D model → $THREED_DIR/${PROJECT_NAME}.wrl"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. 3D RENDERS — PNG (raytraced)
-#    Skipped if SKIP_RENDER=1 (GitHub-hosted runners have no GPU).
-#    Enable on self-hosted runners or locally.
+#    `kicad-cli pcb render` needs a display. Xvfb (virtual display) gives one
+#    for free. No GPU needed — software rasterizer works in CI. Set
+#    SKIP_RENDER=1 to disable entirely.
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "${SKIP_RENDER:-0}" == "1" ]]; then
   warn "[8/9] SKIP_RENDER=1 — skipping 3D renders"
 else
+  # Install Xvfb if not present — needed for headless rendering
+  if ! command -v xvfb-run &>/dev/null; then
+    info "[8/9] Installing xvfb for headless render..."
+    apt-get update -qq 2>&1 >/dev/null && apt-get install -y -qq xvfb 2>&1 >/dev/null || \
+      warn "Could not install xvfb — renders will likely fail"
+  fi
+  XVFB=""
+  command -v xvfb-run &>/dev/null && XVFB="xvfb-run -a --server-args=-screen 0 1920x1080x24"
+
   info "[8/9] 3D render — top → $THREED_DIR/render-top.png"
-  "$KICAD_CLI" pcb render \
+  $XVFB "$KICAD_CLI" pcb render \
     --output  "$THREED_DIR/render-top.png" \
     --side    top \
     --quality high \
-    "$PCB" || warn "3D render (top) failed — GPU/display unavailable?"
+    "$PCB" || warn "3D render (top) failed"
 
   info "[8/9] 3D render — bottom → $THREED_DIR/render-bottom.png"
-  "$KICAD_CLI" pcb render \
+  $XVFB "$KICAD_CLI" pcb render \
     --output  "$THREED_DIR/render-bottom.png" \
     --side    bottom \
     --quality high \
@@ -207,7 +217,7 @@ else
 
   # Angled render — pan/tilt/roll format: "pan,tilt,roll" in degrees
   info "[8/9] 3D render — angled top → $THREED_DIR/render-angled-top.png"
-  "$KICAD_CLI" pcb render \
+  $XVFB "$KICAD_CLI" pcb render \
     --output  "$THREED_DIR/render-angled-top.png" \
     --side    top \
     --rotate  "0,0,30" \

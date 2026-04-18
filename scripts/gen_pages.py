@@ -297,20 +297,13 @@ def tab_bom():
 
 
 def tab_3d():
-    if VRML_FILE:
-        step_link = ""
-        if STEP_FILE:
-            step_link = f' &middot; <a href="{_url(STEP_FILE)}" download>Download STEP</a>'
-        # Iframe into a standalone Three.js viewer page. Lazy-load via data-src
-        # so the Three.js canvas gets correct dimensions when the tab is
-        # first activated, not while hidden.
-        return f'''<iframe class="viewer-3d-frame" data-src="3d-viewer.html" title="3D Model Viewer" allowfullscreen></iframe>
-<div class="viewer-hint">Orbit: left-click+drag &middot; Pan: right-click+drag &middot; Zoom: scroll
-&middot; <a href="{_url(VRML_FILE)}" download>Download VRML</a>{step_link}
-&middot; <a href="3d-viewer.html" target="_blank" rel="noopener">Open in new tab &#8599;</a></div>'''
-    # No VRML — show static renders or previews
-    if RENDER_TOP or RENDER_BOTTOM:
-        tabs, panels = [], []
+    """3D tab — prefer static PNG renders (always work), offer interactive VRML viewer."""
+    have_renders = bool(RENDER_TOP or RENDER_BOTTOM or RENDER_ANGLED)
+    have_vrml = bool(VRML_FILE)
+
+    if have_renders:
+        # Build render toggle + panels
+        render_tabs, render_panels = [], []
         first = True
         for rid, label, src in [
             ("render-top", "Top", RENDER_TOP),
@@ -319,16 +312,48 @@ def tab_3d():
         ]:
             if src:
                 act = " active" if first else ""
-                tabs.append(f'<button class="render-tab{act}" data-render="{rid}">{label}</button>')
-                panels.append(
+                render_tabs.append(f'<button class="render-tab{act}" data-render="{rid}">{label}</button>')
+                render_panels.append(
                     f'<div class="render-panel{act}" id="{rid}">'
                     f'<img src="{_url(src)}" alt="{label}"></div>'
                 )
                 first = False
+
+        # Downloads row
+        dl_links = []
+        if STEP_FILE:
+            dl_links.append(f'<a href="{_url(STEP_FILE)}" download>Download STEP</a>')
+        if VRML_FILE:
+            dl_links.append(f'<a href="{_url(VRML_FILE)}" download>Download VRML</a>')
+        if have_vrml:
+            dl_links.append('<a href="3d-viewer.html" target="_blank" rel="noopener">Interactive viewer &#8599;</a>')
+        dl_row = ' &middot; '.join(dl_links)
+
         return f'''<div class="panel-pad">
-<div class="render-gallery">{"".join(tabs)}</div>
-{"".join(panels)}
+<div class="render-gallery">{"".join(render_tabs)}</div>
+{"".join(render_panels)}
+<p class="subnote" style="margin-top:16px;text-align:center;">{dl_row}</p>
 </div>'''
+
+    # No static renders — try interactive VRML viewer
+    if have_vrml:
+        step_link = ""
+        if STEP_FILE:
+            step_link = f' &middot; <a href="{_url(STEP_FILE)}" download>Download STEP</a>'
+        return f'''<iframe class="viewer-3d-frame" data-src="3d-viewer.html" title="3D Model Viewer" allowfullscreen></iframe>
+<div class="viewer-hint">Orbit: left-click+drag &middot; Pan: right-click+drag &middot; Zoom: scroll
+&middot; <a href="{_url(VRML_FILE)}" download>Download VRML</a>{step_link}
+&middot; <a href="3d-viewer.html" target="_blank" rel="noopener">Open in new tab &#8599;</a></div>'''
+
+    # Nothing — show board previews as last resort
+    if PREVIEW_FRONT or PREVIEW_BACK:
+        pf = f'<figure><figcaption>Front</figcaption><img src="{_url(PREVIEW_FRONT)}" alt="Front"></figure>' if PREVIEW_FRONT else ""
+        pb = f'<figure><figcaption>Back</figcaption><img src="{_url(PREVIEW_BACK)}" alt="Back"></figure>' if PREVIEW_BACK else ""
+        return (
+            '<div class="panel-pad">'
+            '<p class="subnote">3D renders unavailable. Showing 2D board previews.</p>'
+            f'<div class="board-previews">{pf}{pb}</div></div>'
+        )
     return '<div class="panel-pad"><p class="subnote">No 3D model available.</p></div>'
 
 
