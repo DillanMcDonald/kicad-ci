@@ -27,7 +27,9 @@ info "Generating Interactive BOM: $PCB"
 # Install InteractiveHtmlBom via pip
 if ! command -v generate_interactive_bom &>/dev/null; then
   info "Installing InteractiveHtmlBom via pip..."
-  pip install --quiet InteractiveHtmlBom 2>&1 || {
+  PIP_CMD="pip3"
+  command -v pip3 &>/dev/null || PIP_CMD="python3 -m pip"
+  $PIP_CMD install --quiet InteractiveHtmlBom 2>&1 || {
     warn "pip install InteractiveHtmlBom failed — skipping"
     exit 0
   }

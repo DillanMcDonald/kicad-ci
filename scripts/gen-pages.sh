@@ -65,6 +65,8 @@ RENDER_TOP=""; RENDER_BOTTOM=""; RENDER_ANGLED=""
 PREVIEW_FRONT=""; PREVIEW_BACK=""
 [[ -f "$SITE_DIR/preview/board-front.svg" ]] && PREVIEW_FRONT="preview/board-front.svg"
 [[ -f "$SITE_DIR/preview/board-back.svg" ]] && PREVIEW_BACK="preview/board-back.svg"
+STEP_FILE=""
+for f in "$SITE_DIR/3d/"*.step "$SITE_DIR/3d/"*.STEP; do [[ -f "$f" ]] && STEP_FILE="${f#$SITE_DIR/}" && break; done 2>/dev/null || true
 
 _count() { if [[ -d "$SITE_DIR/$1" ]]; then find "$SITE_DIR/$1" -type f 2>/dev/null | wc -l | tr -d ' '; else echo 0; fi; }
 N_FAB=$(_count fab); N_DOCS=$(_count docs); N_ASSEMBLY=$(_count assembly)
@@ -80,7 +82,7 @@ info "Interactive: pcb=$KICANVAS_PCB sch=$KICANVAS_SCH ibom=$HAS_IBOM"
 # Export all vars for Python
 export BOARD_NAME BOARD_VARIANT ERC_COLOR DRC_COLOR ERC_LABEL DRC_LABEL
 export COMMIT_SHA COMMIT_SHORT REPO_URL RUN_URL BUILD_DATE
-export KICANVAS_PCB KICANVAS_SCH HAS_IBOM
+export KICANVAS_PCB KICANVAS_SCH HAS_IBOM STEP_FILE
 export RENDER_TOP RENDER_BOTTOM RENDER_ANGLED PREVIEW_FRONT PREVIEW_BACK
 export TOTAL N_FAB N_REPORTS
 
@@ -111,6 +113,7 @@ render_bottom = env("RENDER_BOTTOM", "")
 render_angled = env("RENDER_ANGLED", "")
 preview_front = env("PREVIEW_FRONT", "")
 preview_back = env("PREVIEW_BACK", "")
+step_file = env("STEP_FILE", "")
 total_files = int(env("TOTAL", "0"))
 n_fab = int(env("N_FAB", "0"))
 n_reports = int(env("N_REPORTS", "0"))
@@ -238,32 +241,55 @@ elif bom_html:
 else:
     bom_tab = '<div class="panel-pad"><p style="color:var(--text2);">No BOM data available.</p></div>'
 
-# 3D tab
-render_tabs = []
-render_panels = []
+# 3D tab — interactive viewer via Online3DViewer (MIT) + static render fallback
+# Build the absolute URL for the STEP file so 3dviewer.net can fetch it
+step_url = ""
+if step_file and repo_url:
+    # Derive GitHub Pages URL from repo URL
+    # https://github.com/owner/repo → https://owner.github.io/repo/
+    parts = repo_url.rstrip("/").split("/")
+    if len(parts) >= 2:
+        owner = parts[-2]
+        repo_name = parts[-1]
+        pages_base = f"https://{owner}.github.io/{repo_name}"
+        from urllib.parse import quote
+        step_url = f"{pages_base}/{quote(step_file)}"
+
+threed_viewer = ""
+if step_url:
+    viewer_url = f"https://3dviewer.net/#{quote('model')}={step_url}"
+    threed_viewer = f'''<iframe class="viewer-3d" src="{viewer_url}" title="3D Board Viewer" loading="lazy" allowfullscreen></iframe>
+<div class="viewer-hint">Orbit: left-click+drag &middot; Pan: right-click+drag &middot; Zoom: scroll &middot;
+<a href="{step_url}" download style="margin-left:8px;">Download STEP</a></div>'''
+
+# Static render fallback
+render_tabs_html = []
+render_panels_html = []
 first = True
 for rid, label, src in [("render-top","Top",render_top),("render-bottom","Bottom",render_bottom),("render-angled","Angled",render_angled)]:
     if src:
         act = " active" if first else ""
-        render_tabs.append(f'<button class="render-tab{act}" data-render="{rid}">{label}</button>')
-        render_panels.append(f'<div class="render-panel{act}" id="{rid}"><div class="render-img-wrap"><img src="{src}" alt="{label}"></div></div>')
+        render_tabs_html.append(f'<button class="render-tab{act}" data-render="{rid}">{label}</button>')
+        render_panels_html.append(f'<div class="render-panel{act}" id="{rid}"><div class="render-img-wrap"><img src="{src}" alt="{label}"></div></div>')
         first = False
 
-if render_tabs:
-    threed_tab = f'''<div class="panel-pad">
-<div class="render-gallery">{"".join(render_tabs)}</div>
-{"".join(render_panels)}
+render_fallback = ""
+if render_tabs_html:
+    render_fallback = f'''<div class="panel-pad" style="border-top:1px solid var(--border);">
+<h3 style="color:var(--heading);margin-bottom:12px;">Static Renders</h3>
+<div class="render-gallery">{"".join(render_tabs_html)}</div>
+{"".join(render_panels_html)}
 </div>'''
-elif preview_front:
-    pback = f'<figure><figcaption>Back</figcaption><img src="{preview_back}" alt="Back"></figure>' if preview_back else ""
+
+if threed_viewer:
+    threed_tab = threed_viewer + render_fallback
+elif render_tabs_html:
     threed_tab = f'''<div class="panel-pad">
-<p style="color:var(--text2);margin-bottom:16px;">3D renders need GPU (self-hosted runner). Showing board SVG previews.</p>
-<div class="board-previews">
-<figure><figcaption>Front</figcaption><img src="{preview_front}" alt="Front"></figure>
-{pback}
-</div></div>'''
+<div class="render-gallery">{"".join(render_tabs_html)}</div>
+{"".join(render_panels_html)}
+</div>'''
 else:
-    threed_tab = '<div class="panel-pad"><p style="color:var(--text2);">No 3D renders or previews available.</p></div>'
+    threed_tab = '<div class="panel-pad"><p style="color:var(--text2);">No 3D model or renders available.</p></div>'
 
 # Fab tab
 fab_preview = ""
@@ -349,6 +375,7 @@ a{{color:var(--accent);text-decoration:none}}a:hover{{text-decoration:underline}
 .board-previews figcaption{{padding:8px 12px;background:var(--bg3);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)}}
 .board-previews img{{width:100%;height:auto;display:block}}
 .ibom-frame{{width:100%;height:calc(100vh - 180px);min-height:600px;border:none;background:#1a1a2e}}
+.viewer-3d{{width:100%;height:calc(100vh - 180px);min-height:500px;border:none;border-bottom:1px solid var(--border)}}
 .bom-wrap{{overflow-x:auto}}.bom-table,.dl-table,.report-table{{width:100%;border-collapse:collapse;font-size:.82rem}}
 .bom-table th,.dl-table th,.report-table th{{background:var(--bg3);position:sticky;top:0;z-index:1;padding:8px 12px;text-align:left;font-weight:600;border-bottom:2px solid var(--border)}}
 .bom-table td,.dl-table td,.report-table td{{padding:6px 12px;border-bottom:1px solid var(--border)}}
@@ -363,7 +390,7 @@ a{{color:var(--accent);text-decoration:none}}a:hover{{text-decoration:underline}
 td.ext{{color:var(--text2);font-family:monospace;font-size:.75rem}}
 .dl-hidden{{display:none}}
 .site-footer{{border-top:1px solid var(--border);padding:12px 24px;text-align:center;font-size:.75rem;color:var(--text2)}}
-@media(max-width:768px){{.header{{flex-direction:column;align-items:flex-start}}.header-meta{{margin-left:0}}.board-previews{{grid-template-columns:1fr}}.viewer-wrap,.ibom-frame{{height:60vh;min-height:350px}}}}
+@media(max-width:768px){{.header{{flex-direction:column;align-items:flex-start}}.header-meta{{margin-left:0}}.board-previews{{grid-template-columns:1fr}}.viewer-wrap,.ibom-frame,.viewer-3d{{height:60vh;min-height:350px}}}}
 </style>
 </head>
 <body>
