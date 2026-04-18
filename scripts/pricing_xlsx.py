@@ -241,6 +241,12 @@ def _reaggregate(path: Path, exclude_dnp: bool) -> List[BomLine]:
 
         for row in reader:
             mpn = row.get(mpn_key or "", "").strip() if mpn_key else ""
+            # Fallback: if no MPN column or empty, try Value (many KiCad
+            # projects put the part number directly in Value).
+            if not mpn or mpn.lower() in ("", "?", "~", "n/a", "tbd"):
+                val = (row.get(val_key or "", "") or "").strip() if val_key else ""
+                if val and len(val) >= 4 and any(c.isdigit() or c == '-' for c in val):
+                    mpn = val
             if not mpn or mpn.lower() in ("", "?", "~", "n/a", "tbd"):
                 continue
 
